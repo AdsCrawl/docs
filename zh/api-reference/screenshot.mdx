@@ -1,27 +1,12 @@
 ---
-title: "POST /screenshot — 将页面或元素捕获为 PNG"
-sidebarTitle: "POST /screenshot"
+title: "捕获页面或元素 PNG 截图"
+sidebarTitle: "Screenshot"
 description: "在真实浏览器中渲染任意 URL，返回整页或限定元素的 PNG 截图，通过住宅代理和指纹伪装进行路由。"
+api: "POST /screenshot"
+playground: "interactive"
 ---
 
 使用 `POST /screenshot` 捕获任意公开网页的像素级 PNG 截图。可请求整页截图，或使用 CSS 选择器定位特定元素。所有内容均在真实浏览器中渲染，配合随机指纹和住宅代理路由，确保你看到的内容与真实访客完全一致。
-
-## Endpoint
-
-```text
-POST https://api.adscrawl.net/screenshot
-```
-
-## Authentication
-
-每个请求都必须在 `x-api-key` header 中包含你的 API 密钥。请在 [控制台](https://app.adscrawl.net/dashboard/) 中生成密钥。
-
-| Header | Type | Description |
-| --- | --- | --- |
-| `x-api-key` | `string` **Required** | 在控制台中创建的完整 API 密钥。 |
-| `content-type` | `string` **Required** | 必须为 `application/json`。 |
-
-## Request body
 
 <ParamField body="url" type="string" required>
   目标页面 URL。必须是可通过 HTTP(S) 访问的 URL，使用 80 或 443 端口。
@@ -118,9 +103,9 @@ POST https://api.adscrawl.net/screenshot
 <ParamField body="countryCode" type="string">
   管理的住宅代理区域。不能与 `proxy` 同时使用。
 
-  - `"GLOBAL"` — 从 15 个热门区域中动态选择出口。
-  - 两位字母国家代码（例如 `"US"`、`"DE"`）— 优先使用该区域的受信任代理，并支持动态回退。
-  - 省略 — 自动随机选择受信任代理。
+  - `"GLOBAL"`：从 15 个热门区域中动态选择出口。
+  - 两位字母国家代码（例如 `"US"`、`"DE"`）：优先使用该区域的受信任代理，并支持动态回退。
+  - 省略：自动随机选择受信任代理。
 </ParamField>
 
 <ParamField body="userAgentMode" type="string">
@@ -227,28 +212,30 @@ POST https://api.adscrawl.net/screenshot
   </Expandable>
 </ParamField>
 
-## Responses
+## 响应
 
-| Code | Content-Type | Description |
-| --- | --- | --- |
-| `200` | `image/png` | 捕获页面或元素的 PNG 二进制流。 |
-| `400` | `application/json` | JSON、URL、Cookie、代理、区域或 User-Agent 参数无效。请求体超过 1 MiB 也会被拒绝。 |
-| `401` | `application/json` | `x-api-key` 缺失或无效。 |
-| `402` | `application/json` | 余额不足。返回 `INSUFFICIENT_CREDITS`、`balance` 和 `requiredCredits`。 |
-| `422` | `application/json` | 未找到选择器（`CONTENT_SELECTOR_NOT_FOUND`）或 Worker payload 无效。 |
-| `429` | `application/json` | 任务请求频率受限。 |
-| `502` | `application/json` | 代理不可达、目标 HTTP 失败或结果过大。 |
-| `503` | `application/json` | 队列、Worker、管理代理或 User-Agent 资源不可用。 |
-| `504` | `application/json` | 任务、导航或代理连接超时。 |
-| `500` | `application/json` | 未分类的任务执行失败。 |
+| Code | Meaning |
+| --- | --- |
+| `200` | 成功。返回 `image/png` 二进制流，包含捕获的页面或元素。 |
+| `400` | JSON、URL、Cookie、代理、区域或 User-Agent 参数无效。请求体超过 1 MiB。 |
+| `401` | `x-api-key` 缺失或无效。 |
+| `402` | 余额不足。返回 `INSUFFICIENT_CREDITS`、`balance` 和 `requiredCredits`。 |
+| `422` | 未找到选择器（`CONTENT_SELECTOR_NOT_FOUND`）或 Worker payload 无效。 |
+| `429` | 任务请求频率受限。 |
+| `502` | 代理不可达或目标 HTTP 失败。 |
+| `503` | 队列、Worker、管理代理或 User-Agent 资源不可用。 |
+| `504` | 任务、导航或代理连接超时。 |
+| `500` | 未分类的任务执行失败。 |
 
 <Note>
   当使用 `selector` 时，服务器会等待元素出现后再进行捕获。如果元素在导航超时内未找到，则返回 `422 CONTENT_SELECTOR_NOT_FOUND`。
 </Note>
 
-## Code examples
+<Note>
+  一次请求验证后会消耗 1 积分，在任务入队之前扣除。请求体限制为 1 MiB。
+</Note>
 
-<CodeGroup>
+<RequestExample>
 
 ```bash cURL — full page
 curl -sS -X POST "https://api.adscrawl.net/screenshot" \
@@ -278,10 +265,6 @@ curl -sS -X POST "https://api.adscrawl.net/screenshot" \
   }' \
   --output hero.png
 ```
-
-</CodeGroup>
-
-<CodeGroup>
 
 ```javascript JavaScript
 import fs from "fs";
@@ -337,69 +320,45 @@ with open("page.png", "wb") as f:
     f.write(response.content)
 ```
 
-</CodeGroup>
+</RequestExample>
 
-## Response examples
+<ResponseExample>
 
-<Tabs>
-  <Tab title="200 image/png">
-    ```text
-    HTTP/1.1 200 OK
-    Content-Type: image/png
-    
-    <binary PNG stream>
-    ```
-  </Tab>
-  <Tab title="422 Selector not found">
-    ```json
-    {
-      "error": "Content selector was not found",
-      "code": "CONTENT_SELECTOR_NOT_FOUND"
-    }
-    ```
-  </Tab>
-  <Tab title="402 Insufficient credits">
-    ```json
-    {
-      "error": "Insufficient credits",
-      "code": "INSUFFICIENT_CREDITS",
-      "balance": 0,
-      "requiredCredits": 1
-    }
-    ```
-  </Tab>
-  <Tab title="400 Bad country code">
-    ```json
-    {
-      "error": "countryCode is not supported",
-      "code": "INVALID_COUNTRY_CODE"
-    }
-    ```
-  </Tab>
-  <Tab title="503 Proxy unavailable">
-    ```json
-    {
-      "error": "Dynamic country/region routing is unavailable",
-      "code": "DYNAMIC_PROXY_NOT_CONFIGURED"
-    }
-    ```
-  </Tab>
-</Tabs>
+```text 200 image/png
+HTTP/1.1 200 OK
+Content-Type: image/png
 
-## Error reference
+<binary PNG stream>
+```
 
-| Code | Error code | Cause |
-| --- | --- | --- |
-| `400` | `INVALID_COUNTRY_CODE` | `countryCode` 值未被识别。 |
-| `401` | — | `x-api-key` 缺失或无效。 |
-| `402` | `INSUFFICIENT_CREDITS` | 账户余额过低。请检查响应体中的 `balance` 和 `requiredCredits`。 |
-| `422` | `CONTENT_SELECTOR_NOT_FOUND` | CSS `selector` 未匹配页面上的任何元素。 |
-| `429` | — | 请求频率限制已达到。请退避后重试。 |
-| `502` | — | 代理不可达或目标服务器返回错误。 |
-| `503` | `DYNAMIC_PROXY_NOT_CONFIGURED` | 管理代理路由暂时不可用。 |
-| `504` | — | 导航或代理连接超时。请增加 `timeoutMs` 或稍后重试。 |
-| `500` | — | 未分类的内部错误。 |
+```json 422 Selector not found
+{
+  "error": "Content selector was not found",
+  "code": "CONTENT_SELECTOR_NOT_FOUND"
+}
+```
 
-<Note>
-  一次请求验证后会消耗 1 积分，在任务入队之前扣除。请求体限制为 1 MiB。
-</Note>
+```json 402 Insufficient credits
+{
+  "error": "Insufficient credits",
+  "code": "INSUFFICIENT_CREDITS",
+  "balance": 0,
+  "requiredCredits": 1
+}
+```
+
+```json 400 Bad country code
+{
+  "error": "countryCode is not supported",
+  "code": "INVALID_COUNTRY_CODE"
+}
+```
+
+```json 503 Proxy unavailable
+{
+  "error": "Dynamic country/region routing is unavailable",
+  "code": "DYNAMIC_PROXY_NOT_CONFIGURED"
+}
+```
+
+</ResponseExample>

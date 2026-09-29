@@ -1,29 +1,12 @@
 ---
-title: "POST /html — 渲染 HTML、Markdown 或 Article JSON"
-sidebarTitle: "POST /html"
+title: "渲染 HTML、Markdown 或 Article JSON"
+sidebarTitle: "渲染 HTML"
 description: "通过住宅代理加载任意公开 URL，返回完整渲染的原始 HTML、可读 Markdown 或结构化文章 JSON。"
+api: "POST /html"
+playground: "interactive"
 ---
 
 使用 `POST /html` 在真实浏览器中加载任意公开 URL，并以应用所需的格式返回渲染后的内容。选择 `"html"` 获取完整 DOM，选择 `"markdown"` 获取干净可读的文章内容，或选择 `"json"` 获取包含标题、作者、摘要和正文结构的 Readability 结构化数据。所有请求均通过住宅代理并配合随机浏览器指纹进行路由。
-
-## Endpoint
-
-## Endpoint
-
-```text
-POST https://api.adscrawl.net/html
-```
-
-## Authentication
-
-每个请求都必须在 `x-api-key` header 中包含你的 API 密钥。请在 [控制台](https://app.adscrawl.net/dashboard/) 中生成密钥。
-
-| Header | Type | Description |
-| --- | --- | --- |
-| `x-api-key` | `string` **Required** | 在控制台中创建的完整 API 密钥。 |
-| `content-type` | `string` **Required** | 必须为 `application/json`。 |
-
-## Request body
 
 <ParamField body="url" type="string" required>
   目标页面 URL。仅支持 80 和 443 端口。
@@ -38,7 +21,7 @@ POST https://api.adscrawl.net/html
 </ParamField>
 
 <ParamField body="waitUntil" type="string">
-  在提取内容前等待的导航事件。默认值为 \`"load"。
+  在提取内容前等待的导航事件。默认值为 `"load"`。
 
   | Value | Behaviour |
   | --- | --- |
@@ -120,9 +103,9 @@ POST https://api.adscrawl.net/html
 <ParamField body="countryCode" type="string">
   管理的住宅代理区域。不能与 `proxy` 同时使用。
 
-  - `"GLOBAL"` — 从 15 个热门区域中动态选择出口。
-  - 两位字母国家代码（例如 `"US"`、`"DE"`）— 优先使用该区域的受信任代理，并支持动态回退。
-  - 省略 — 自动随机选择受信任代理。
+  - `"GLOBAL"`：从 15 个热门区域中动态选择出口。
+  - 两位字母国家代码（例如 `"US"`、`"DE"`）：优先使用该区域的受信任代理，并支持动态回退。
+  - 省略：自动随机选择受信任代理。
 </ParamField>
 
 <ParamField body="userAgentMode" type="string">
@@ -229,26 +212,7 @@ POST https://api.adscrawl.net/html
   </Expandable>
 </ParamField>
 
-## Responses
-
-| Code | Content-Type | Description |
-| --- | --- | --- |
-| `200` | `text/html` | 完整渲染页面的 HTML，或在设置了 `selector` 时返回限定元素的 HTML。 |
-| `200` | `text/markdown` | 当 `contentMode` 为 `"markdown"` 时返回可读文章的 Markdown。 |
-| `200` | `application/json` | 当 `contentMode` 为 `"json"` 时返回结构化文章数据。 |
-| `400` | `application/json` | JSON、URL、`contentMode`、Cookie、代理、区域或 User-Agent 参数无效。请求体超过 1 MiB 也会被拒绝。 |
-| `401` | `application/json` | `x-api-key` 缺失或无效。 |
-| `402` | `application/json` | 余额不足。返回 `INSUFFICIENT_CREDITS`、`balance` 和 `requiredCredits`。 |
-| `422` | `application/json` | 未找到选择器、缺少可读内容（`READABILITY_CONTENT_NOT_FOUND`）或 Worker payload 无效。 |
-| `429` | `application/json` | 任务请求频率受限。 |
-| `502` | `application/json` | 代理不可达、目标 HTTP 失败或结果过大。 |
-| `503` | `application/json` | 队列、Worker、管理代理或 User-Agent 资源不可用。 |
-| `504` | `application/json` | 任务、导航或代理连接超时。 |
-| `500` | `application/json` | 未分类的任务执行失败。 |
-
-### `contentMode: "json"` 的响应字段
-
-当 `contentMode` 为 `"json"` 时，200 响应体为一个结构化的 Readability 文章对象，包含以下字段。
+## 响应
 
 <ResponseField name="title" type="string">
   从页面提取的文章标题。
@@ -290,9 +254,85 @@ POST https://api.adscrawl.net/html
   ISO 8601 发布日期时间戳，如果未找到则为 `null`。
 </ResponseField>
 
-## Code examples
+| Code | Meaning |
+| --- | --- |
+| `200` | 成功。根据 contentMode 返回 text/html、text/markdown 或 application/json。 |
+| `400` | JSON、URL、contentMode、Cookie、代理、区域或 User-Agent 参数无效。请求体超过 1 MiB。 |
+| `401` | `x-api-key` 缺失或无效。 |
+| `402` | 余额不足。返回 `INSUFFICIENT_CREDITS`、`balance` 和 `requiredCredits`。 |
+| `422` | 未找到选择器（`CONTENT_SELECTOR_NOT_FOUND`）或缺少可读内容（`READABILITY_CONTENT_NOT_FOUND`）。 |
+| `429` | 任务请求频率受限。 |
+| `502` | 代理不可达或目标 HTTP 失败。 |
+| `503` | 队列、Worker、管理代理或 User-Agent 资源不可用。 |
+| `504` | 任务、导航或代理连接超时。 |
+| `500` | 未分类的任务执行失败。 |
+
+<Note>
+  一次请求验证后会消耗 1 积分，在任务入队之前扣除。请求体限制为 1 MiB。
+</Note>
+
+## 更多示例
 
 <CodeGroup>
+
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/html" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "contentMode": "html",
+    "selector": "main",
+    "waitUntil": "domcontentloaded",
+    "countryCode": "US"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.adscrawl.net/html", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-api-key": "YOUR_API_KEY",
+  },
+  body: JSON.stringify({
+    url: "https://example.com",
+    contentMode: "html",
+    selector: "main",
+    waitUntil: "domcontentloaded",
+    countryCode: "US",
+  }),
+});
+
+const html = await response.text();
+console.log(html);
+```
+
+```python Python
+import httpx
+
+response = httpx.post(
+    "https://api.adscrawl.net/html",
+    headers={
+        "content-type": "application/json",
+        "x-api-key": "YOUR_API_KEY",
+    },
+    json={
+        "url": "https://example.com",
+        "contentMode": "html",
+        "selector": "main",
+        "waitUntil": "domcontentloaded",
+        "countryCode": "US",
+    },
+)
+
+response.raise_for_status()
+print(response.text)
+```
+
+</CodeGroup>
+
+<RequestExample>
 
 ```bash cURL
 curl -sS -X POST "https://api.adscrawl.net/html" \
@@ -364,149 +404,62 @@ article = response.json()
 print(article["title"], article["byline"])
 ```
 
-</CodeGroup>
+</RequestExample>
 
-### 示例：获取限定选择器的原始 HTML
+<ResponseExample>
 
-<CodeGroup>
-
-```bash cURL
-curl -sS -X POST "https://api.adscrawl.net/html" \
-  -H "content-type: application/json" \
-  -H "x-api-key: YOUR_API_KEY" \
-  -d '{
-    "url": "https://example.com",
-    "contentMode": "html",
-    "selector": "main",
-    "waitUntil": "domcontentloaded",
-    "countryCode": "US"
-  }'
+```json 200 JSON (contentMode: json)
+{
+  "title": "Example Article",
+  "byline": "OpenAI",
+  "excerpt": "A concise article summary.",
+  "siteName": "Example",
+  "lang": "en",
+  "dir": null,
+  "content": "<div><p>Readable body...</p></div>",
+  "textContent": "Readable body...",
+  "length": 2487,
+  "publishedTime": null
+}
 ```
 
-```javascript JavaScript
-const response = await fetch("https://api.adscrawl.net/html", {
-  method: "POST",
-  headers: {
-    "content-type": "application/json",
-    "x-api-key": "YOUR_API_KEY",
-  },
-  body: JSON.stringify({
-    url: "https://example.com",
-    contentMode: "html",
-    selector: "main",
-    waitUntil: "domcontentloaded",
-    countryCode: "US",
-  }),
-});
+```markdown 200 Markdown (contentMode: markdown)
+# Example Article
 
-const html = await response.text();
-console.log(html);
+Readable body...
+
+- key point one
+- key point two
 ```
 
-```python Python
-import httpx
-
-response = httpx.post(
-    "https://api.adscrawl.net/html",
-    headers={
-        "content-type": "application/json",
-        "x-api-key": "YOUR_API_KEY",
-    },
-    json={
-        "url": "https://example.com",
-        "contentMode": "html",
-        "selector": "main",
-        "waitUntil": "domcontentloaded",
-        "countryCode": "US",
-    },
-)
-
-response.raise_for_status()
-print(response.text)
+```json 402 Insufficient credits
+{
+  "error": "Insufficient credits",
+  "code": "INSUFFICIENT_CREDITS",
+  "balance": 0,
+  "requiredCredits": 1
+}
 ```
 
-</CodeGroup>
+```json 422 Readability not found
+{
+  "error": "Readable article content was not found",
+  "code": "READABILITY_CONTENT_NOT_FOUND"
+}
+```
 
-## Response examples
+```json 400 Bad country code
+{
+  "error": "countryCode is not supported",
+  "code": "INVALID_COUNTRY_CODE"
+}
+```
 
-<Tabs>
-  <Tab title="200 JSON (contentMode: json)">
-    ```json
-    {
-      "title": "Example Article",
-      "byline": "OpenAI",
-      "excerpt": "A concise article summary.",
-      "siteName": "Example",
-      "lang": "en",
-      "dir": null,
-      "content": "<div><p>Readable body...</p></div>",
-      "textContent": "Readable body...",
-      "length": 2487,
-      "publishedTime": null
-    }
-    ```
-  </Tab>
-  <Tab title="200 Markdown (contentMode: markdown)">
-    ```markdown
-    # Example Article
-    
-    Readable body...
-    
-    - key point one
-    - key point two
-    ```
-  </Tab>
-  <Tab title="422 Readability not found">
-    ```json
-    {
-      "error": "Readable article content was not found",
-      "code": "READABILITY_CONTENT_NOT_FOUND"
-    }
-    ```
-  </Tab>
-  <Tab title="402 Insufficient credits">
-    ```json
-    {
-      "error": "Insufficient credits",
-      "code": "INSUFFICIENT_CREDITS",
-      "balance": 0,
-      "requiredCredits": 1
-    }
-    ```
-  </Tab>
-  <Tab title="400 Bad country code">
-    ```json
-    {
-      "error": "countryCode is not supported",
-      "code": "INVALID_COUNTRY_CODE"
-    }
-    ```
-  </Tab>
-  <Tab title="503 Proxy unavailable">
-    ```json
-    {
-      "error": "Dynamic country/region routing is unavailable",
-      "code": "DYNAMIC_PROXY_NOT_CONFIGURED"
-    }
-    ```
-  </Tab>
-</Tabs>
+```json 503 Proxy unavailable
+{
+  "error": "Dynamic country/region routing is unavailable",
+  "code": "DYNAMIC_PROXY_NOT_CONFIGURED"
+}
+```
 
-## Error reference
-
-| Code | Error code | Cause |
-| --- | --- | --- |
-| `400` | `INVALID_COUNTRY_CODE` | `countryCode` 值未被识别。 |
-| `401` | — | `x-api-key` 缺失或无效。 |
-| `402` | `INSUFFICIENT_CREDITS` | 账户余额过低。请检查响应体中的 `balance` 和 `requiredCredits`。 |
-| `422` | `CONTENT_SELECTOR_NOT_FOUND` | CSS `selector` 未匹配页面上的任何元素。 |
-| `422` | `READABILITY_CONTENT_NOT_FOUND` | 未找到可读文章内容（适用于 `"markdown"` 和 `"json"` 模式）。 |
-| `429` | — | 请求频率限制已达到。请退避后重试。 |
-| `502` | — | 代理不可达或目标服务器返回错误。 |
-| `503` | `DYNAMIC_PROXY_NOT_CONFIGURED` | 管理代理路由暂时不可用。 |
-| `504` | — | 导航或代理连接超时。请增加 `timeoutMs` 或稍后重试。 |
-| `500` | — | 未分类的内部错误。 |
-
-<Note>
-  一次请求验证后会消耗 1 积分，在任务入队之前扣除。请求体限制为 1 MiB。
-</Note>
+</ResponseExample>

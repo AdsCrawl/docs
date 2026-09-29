@@ -1,0 +1,80 @@
+---
+title: "AdsCrawl REST API Introduction"
+sidebarTitle: "Introduction"
+description: "Base URL, authentication, JSON request bodies, credits consumption, common HTTP status codes, and links to all AdsCrawl API endpoint groups and schemas."
+---
+
+The AdsCrawl REST API lets you render web pages, capture screenshots, extract SPA data, manage remote CDP sessions, and launch persistent cloud browsers programmatically. This page covers the base URL, how to authenticate, how credits are billed, common status codes, and where to find every endpoint group.
+
+## Base URL
+
+All endpoints are served over HTTPS:
+
+```text
+https://api.adscrawl.net
+```
+
+## Authentication
+
+Nearly every endpoint requires an API key in the `x-api-key` request header. Generate and manage keys from the [AdsCrawl dashboard](https://app.adscrawl.net/dashboard/). Store your key in an environment variable or secrets manager, and never expose it in client-side code or public repositories.
+
+Cloud browser lifecycle endpoints (`/cloud-browsers/*`) also accept a session JWT via `Authorization: Bearer <SESSION_JWT>`, or a dashboard session cookie.
+
+All requests with a JSON body must include:
+
+```text
+content-type: application/json
+```
+
+## Credits consumption
+
+Credits are billed per operation.
+
+| Operation | Credit cost |
+| --- | --- |
+| `POST /html` | 1 credit per request |
+| `POST /screenshot` | 1 credit per request |
+| `POST /spa-extract` | 1 credit per request |
+| Cloud Browser (running) | 1 credit per started minute, rounded up |
+
+Credits are deducted after request validation but before execution. Failed browser tasks do not refund credits. Cloud browser billing ends at the first confirmed stop.
+
+## Common status codes
+
+The API uses standard HTTP response codes.
+
+| Code | Meaning | Cause |
+| --- | --- | --- |
+| `200` | Success | Request completed normally. |
+| `400` | Bad request | Invalid JSON, malformed URL, oversized body (> 1 MiB), or unsupported parameter. |
+| `401` | Unauthenticated | Missing or invalid `x-api-key`. |
+| `402` | Payment required | Insufficient credits (`INSUFFICIENT_CREDITS`) or a paid plan is required (`PAID_PLAN_REQUIRED`). |
+| `403` | Forbidden | The referenced session was created by a different API key. |
+| `404` | Not found | The requested profile or session does not exist. |
+| `409` | Conflict | Cloud browser concurrency limit reached (`CLOUD_BROWSER_CONCURRENCY_LIMIT`). |
+| `422` | Unprocessable | Content selector not found or readability extraction failed. |
+| `429` | Too many requests | Rate limit or per-key session limit exceeded. Back off with exponential backoff. |
+| `502` | Bad gateway | Proxy unreachable or the target server returned an error. |
+| `503` | Service unavailable | Runtime or managed proxy temporarily unavailable (`CDP_WORKER_UNAVAILABLE`, `DYNAMIC_PROXY_NOT_CONFIGURED`). |
+| `504` | Gateway timeout | Navigation or proxy connection timed out. |
+| `500` | Internal error | Unclassified server failure. Retry with exponential backoff. |
+
+## Endpoint groups
+
+<CardGroup cols={2}>
+  <Card title="Browser Tasks" icon="browser" href="/api-reference/html">
+    Render HTML, capture screenshots, and extract SPA data with residential proxies and randomized fingerprints.
+  </Card>
+
+  <Card title="Remote CDP" icon="terminal" href="/api-reference/cdp-sessions">
+    Create and manage remote Chrome DevTools Protocol sessions for low-level browser control.
+  </Card>
+
+  <Card title="Cloud Browsers" icon="cloud" href="/api-reference/cloud-browsers-list">
+    Save, launch, start, and stop persistent cloud browser profiles with live interactive viewers.
+  </Card>
+
+  <Card title="Schemas" icon="code" href="/api-reference/schemas">
+    View the shared request and response object definitions used across the API.
+  </Card>
+</CardGroup>

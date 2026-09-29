@@ -1,117 +1,19 @@
 ---
-title: "POST /spa-extract — Extract Data from Dynamic SPAs"
-sidebarTitle: "POST /spa-extract"
-description: "Extract structured data from JavaScript-heavy SPAs using custom CSS/network fields, built-in templates, or inspect mode to discover extraction candidates."
+title: "Extract SPA Data"
+sidebarTitle: "Extract SPA Data"
+description: "Extract structured data from JavaScript-heavy SPAs using custom CSS or network fields, built-in templates, or inspect mode to discover extraction candidates."
+api: "POST /spa-extract"
+playground: "interactive"
 ---
-
-Use the SPA extraction endpoints to pull structured data out of single-page applications that require JavaScript to render their content. You can define your own CSS selector or network-intercept fields, choose a built-in template for sites like SimilarWeb or Google Trends, or run `inspect` mode to let the API suggest an extraction plan for you.
-
----
-
-## GET /spa-extract/templates
-
-Retrieve the list of available built-in extraction templates. Each template includes its required input type, example URL, expected output fields, and metadata.
-
-### Endpoint
-
-```
-GET https://api.adscrawl.net/spa-extract/templates
-```
-
-### Authentication
-
-| Header | Type | Description |
-|---|---|---|
-| `x-api-key` | `string` **Required** | Full API key created in the dashboard. |
-
-### Responses
-
-| Code | Content-Type | Description |
-|---|---|---|
-| `200` | `application/json` | Active templates with their inputs, defaults, and output fields. |
-| `401` | `application/json` | Missing or invalid `x-api-key`. |
-| `500` | `application/json` | Failed to load the template catalog. |
-
-### Code example
-
-```bash cURL
-curl -sS "https://api.adscrawl.net/spa-extract/templates" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-### Response example
-
-```json
-{
-  "templates": [
-    {
-      "id": "similarweb-overview",
-      "name": "SimilarWeb Website Overview",
-      "description": "Get public website traffic, engagement, and ranking metrics from SimilarWeb.",
-      "urlPattern": "^https://www\\.similarweb\\.com/website/[^/?#]+/?(?:[?#].*)?$",
-      "exampleUrl": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
-      "version": 5,
-      "updatedAt": "2026-07-18T14:07:33.000Z",
-      "outputFields": [
-        "avgVisitDuration",
-        "avgVisitDurationSeconds",
-        "bounceRate",
-        "categoryRank",
-        "countryRank",
-        "globalRank",
-        "pagesPerVisit",
-        "period",
-        "targetDomain",
-        "totalVisits",
-        "totalVisitsDisplay"
-      ],
-      "waitUntil": "domcontentloaded",
-      "input": {
-        "type": "domain",
-        "example": "dolphin-anty.com",
-        "urlTemplate": "https://www.similarweb.com/website/{value}/#overview"
-      },
-      "catalog": {
-        "category": "analytics",
-        "featured": true,
-        "keywords": ["traffic", "rank", "website analytics"]
-      }
-    }
-  ]
-}
-```
-
-<Tip>
-  Pass the template `id` (e.g. `"similarweb-overview"`) as the `template` field in your `POST /spa-extract` request body.
-</Tip>
-
----
-
-## POST /spa-extract
 
 Submit a page URL and extraction configuration to retrieve structured data from a JavaScript-rendered SPA. You can use custom field definitions, a built-in template, or `inspect` mode to discover what data is available on a page.
 
-### Endpoint
-
-```
-POST https://api.adscrawl.net/spa-extract
-```
-
-### Authentication
-
-| Header | Type | Description |
-|---|---|---|
-| `x-api-key` | `string` **Required** | Full API key created in the dashboard. |
-| `content-type` | `string` **Required** | Must be `application/json`. |
-
-### Request body
-
 <ParamField body="url" type="string">
-  Full HTTP(S) URL for the target SPA using port 80 or 443. Required for most templates. For `google-trends-explore`, prefer the `keyword` field instead. SimilarWeb requires a full page URL — not a bare domain.
+  Full HTTP(S) URL for the target SPA using port 80 or 443. Required for most templates. For `google-trends-explore`, prefer the `keyword` field instead. SimilarWeb requires a full page URL, not a bare domain.
 </ParamField>
 
 <ParamField body="keyword" type="string">
-  Recommended for `google-trends-explore`. Provide 1–5 unique, non-empty comma-separated keywords, each at most 100 Unicode characters (e.g. `"adspower,playwright"`). The server builds the canonical Trends URL automatically. Explicit `null`, numeric, or empty-string values return `INVALID_KEYWORD` and never fall back to `url`.
+  Recommended for `google-trends-explore`. Provide 1 to 5 unique, non-empty comma-separated keywords, each at most 100 Unicode characters (for example, `"adspower,playwright"`). The server builds the canonical Trends URL automatically. Explicit `null`, numeric, or empty-string values return `INVALID_KEYWORD` and never fall back to `url`.
 </ParamField>
 
 <ParamField body="mode" type="string">
@@ -159,7 +61,7 @@ POST https://api.adscrawl.net/spa-extract
   Optional page interactions executed in array order before extraction. Each step is capped at 30 seconds.
 
   <Expandable title="action types">
-    <ParamField body="wait" type="object">`{ type: "wait", milliseconds: number }` — Pause for 0–30,000 ms.</ParamField>
+    <ParamField body="wait" type="object">`{ type: "wait", milliseconds: number }` — Pause for 0 to 30,000 ms.</ParamField>
     <ParamField body="waitForSelector" type="object">`{ type: "waitForSelector", selector: string, timeoutMs?: number }` — Wait for an element to become visible.</ParamField>
     <ParamField body="click" type="object">`{ type: "click", selector: string }` — Click the first matching element.</ParamField>
     <ParamField body="fill" type="object">`{ type: "fill", selector: string, value: string }` — Clear and fill the first matching input.</ParamField>
@@ -175,9 +77,9 @@ POST https://api.adscrawl.net/spa-extract
     <ParamField body="source" type="string" required>`"dom"` to read from the page HTML, or `"network"` to read from intercepted JSON responses.</ParamField>
     <ParamField body="selector" type="string">CSS selector for a DOM field.</ParamField>
     <ParamField body="value" type="string">DOM read mode: `"text"` (default), `"html"`, or `"attribute"`.</ParamField>
-    <ParamField body="attribute" type="string">Attribute name — used when `value` is `"attribute"`.</ParamField>
+    <ParamField body="attribute" type="string">Attribute name, used when `value` is `"attribute"`.</ParamField>
     <ParamField body="urlIncludes" type="string">Substring to match against a response URL for a network field.</ParamField>
-    <ParamField body="path" type="string">JSON path within the matched network response, e.g. `$.data.metrics[0].value`.</ParamField>
+    <ParamField body="path" type="string">JSON path within the matched network response, for example `$.data.metrics[0].value`.</ParamField>
     <ParamField body="multiple" type="boolean">Whether a DOM field should return all matching elements as an array.</ParamField>
     <ParamField body="parse" type="string">Coerce the value to `"string"`, `"number"`, `"integer"`, `"boolean"`, or `"json"`.</ParamField>
     <ParamField body="regex" type="string">Optional regular expression. When a capture group is present, group 1 is used.</ParamField>
@@ -290,330 +192,284 @@ POST https://api.adscrawl.net/spa-extract
   </Expandable>
 </ParamField>
 
-### Responses
+## Response
 
-| Code | Content-Type | Description |
-|---|---|---|
-| `200` | `application/json` | Inspection results or extracted structured data. |
-| `400` | `application/json` | Invalid URL, keyword, proxy, region, User-Agent, or Trends cookies. |
-| `401` | `application/json` | Missing or invalid `x-api-key`. |
-| `402` | `application/json` | Insufficient balance (`INSUFFICIENT_CREDITS`). |
-| `404` | `application/json` | Chrome Web Store listing unavailable and CRX fallback could not recover it. |
-| `422` | `application/json` | Required fields missing, invalid template/field config, or Worker rejected the task. |
-| `429` | `application/json` | Task rate limited, or Google Trends upstream 429. |
-| `502` | `application/json` | Proxy or target failure, invalid Trends data, or all candidate identities exhausted. |
-| `503` | `application/json` | Queue, Worker, or managed resources unavailable; or Trends identity plan expired. |
-| `504` | `application/json` | Task, navigation, or proxy timeout; or Trends response not observed. |
-| `500` | `application/json` | Unclassified task execution failure. |
+<ResponseField name="mode" type="string">
+  `"extract"` or `"inspect"`, mirroring the request mode.
+</ResponseField>
 
-## Code examples
+<ResponseField name="page" type="object">
+  Page metadata.
 
-<Tabs>
-  <Tab title="Custom fields">
-    Extract specific DOM elements from any SPA using your own field definitions.
-
-    <CodeGroup>
-
-    ```bash cURL
-    curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
-      -H "content-type: application/json" \
-      -H "x-api-key: YOUR_API_KEY" \
-      -d '{
-        "url": "https://example.com/dashboard",
-        "mode": "extract",
-        "waitUntil": "domcontentloaded",
-        "waitFor": { "selector": "h1", "timeoutMs": 15000 },
-        "fields": {
-          "title":    { "source": "dom", "selector": "h1",           "parse": "string" },
-          "subtitle": { "source": "dom", "selector": "p.subtitle",   "parse": "string" },
-          "count":    { "source": "dom", "selector": ".metric-value", "parse": "number" }
-        },
-        "countryCode": "GLOBAL",
-        "userAgentMode": "random"
-      }'
-    ```
-
-    ```javascript JavaScript
-    const response = await fetch("https://api.adscrawl.net/spa-extract", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": "YOUR_API_KEY",
-      },
-      body: JSON.stringify({
-        url: "https://example.com/dashboard",
-        mode: "extract",
-        waitUntil: "domcontentloaded",
-        waitFor: { selector: "h1", timeoutMs: 15000 },
-        fields: {
-          title:    { source: "dom", selector: "h1",            parse: "string" },
-          subtitle: { source: "dom", selector: "p.subtitle",    parse: "string" },
-          count:    { source: "dom", selector: ".metric-value", parse: "number" },
-        },
-        countryCode: "GLOBAL",
-        userAgentMode: "random",
-      }),
-    });
-
-    const result = await response.json();
-    console.log(result.data);
-    ```
-
-    ```python Python
-    import httpx
-
-    response = httpx.post(
-        "https://api.adscrawl.net/spa-extract",
-        headers={
-            "content-type": "application/json",
-            "x-api-key": "YOUR_API_KEY",
-        },
-        json={
-            "url": "https://example.com/dashboard",
-            "mode": "extract",
-            "waitUntil": "domcontentloaded",
-            "waitFor": {"selector": "h1", "timeoutMs": 15000},
-            "fields": {
-                "title":    {"source": "dom", "selector": "h1",             "parse": "string"},
-                "subtitle": {"source": "dom", "selector": "p.subtitle",     "parse": "string"},
-                "count":    {"source": "dom", "selector": ".metric-value",  "parse": "number"},
-            },
-            "countryCode": "GLOBAL",
-            "userAgentMode": "random",
-        },
-    )
-
-    response.raise_for_status()
-    print(response.json()["data"])
-    ```
-
-    </CodeGroup>
-  </Tab>
-  <Tab title="SimilarWeb template">
-    Use the `similarweb-overview` template to pull traffic and ranking metrics for any domain.
-
-    <CodeGroup>
-
-    ```bash cURL
-    curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
-      -H "content-type: application/json" \
-      -H "x-api-key: YOUR_API_KEY" \
-      -d '{
-        "template": "similarweb-overview",
-        "url": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
-        "countryCode": "GLOBAL"
-      }'
-    ```
-
-    ```javascript JavaScript
-    const response = await fetch("https://api.adscrawl.net/spa-extract", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": "YOUR_API_KEY",
-      },
-      body: JSON.stringify({
-        template: "similarweb-overview",
-        url: "https://www.similarweb.com/website/dolphin-anty.com/#overview",
-        countryCode: "GLOBAL",
-      }),
-    });
-
-    const result = await response.json();
-    console.log(result.data.globalRank, result.data.totalVisits);
-    ```
-
-    ```python Python
-    import httpx
-
-    response = httpx.post(
-        "https://api.adscrawl.net/spa-extract",
-        headers={
-            "content-type": "application/json",
-            "x-api-key": "YOUR_API_KEY",
-        },
-        json={
-            "template": "similarweb-overview",
-            "url": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
-            "countryCode": "GLOBAL",
-        },
-    )
-
-    response.raise_for_status()
-    data = response.json()["data"]
-    print(data["globalRank"], data["totalVisits"])
-    ```
-
-    </CodeGroup>
-  </Tab>
-  <Tab title="Google Trends">
-    Fetch interest-over-time data for up to 5 keywords using the `google-trends-explore` template.
-
-    <CodeGroup>
-
-    ```bash cURL
-    curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
-      -H "content-type: application/json" \
-      -H "x-api-key: YOUR_API_KEY" \
-      -d '{
-        "template": "google-trends-explore",
-        "keyword": "adspower,playwright"
-      }'
-    ```
-
-    ```javascript JavaScript
-    const response = await fetch("https://api.adscrawl.net/spa-extract", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": "YOUR_API_KEY",
-      },
-      body: JSON.stringify({
-        template: "google-trends-explore",
-        keyword: "adspower,playwright",
-      }),
-    });
-
-    const result = await response.json();
-    console.log(result.data.averages);
-    console.log("source:", result.source, "cached:", result.cached);
-    ```
-
-    ```python Python
-    import httpx
-
-    response = httpx.post(
-        "https://api.adscrawl.net/spa-extract",
-        headers={
-            "content-type": "application/json",
-            "x-api-key": "YOUR_API_KEY",
-        },
-        json={
-            "template": "google-trends-explore",
-            "keyword": "adspower,playwright",
-        },
-    )
-
-    response.raise_for_status()
-    result = response.json()
-    print(result["data"]["averages"])
-    print("source:", result["source"], "cached:", result["cached"])
-    ```
-
-    </CodeGroup>
-  </Tab>
-</Tabs>
-
-## Response examples
-
-<Tabs>
-  <Tab title="extract mode">
-    Returned by any `mode: "extract"` request. The `data` object keys match your `fields` definition (or the template's output fields).
-
-    ```json
-    {
-      "mode": "extract",
-      "page": {
-        "url": "https://example.com/dashboard",
-        "title": "Example Dashboard"
-      },
-      "data": {
-        "title": "Example Dashboard"
-      },
-      "missingFields": []
-    }
-    ```
-  </Tab>
-  <Tab title="Google Trends response">
-    Successful Trends responses include extra top-level metadata: `source`, `cached`, `stale`, `collectedAt`, and `attempts`.
-
-    ```json
-    {
-      "mode": "extract",
-      "page": {
-        "url": "https://trends.google.com/trends/explore?q=adspower%2Cplaywright",
-        "title": "Google Trends"
-      },
-      "data": {
-        "averages": [
-          { "query": "adspower",    "extractedValue": 42 },
-          { "query": "playwright",  "extractedValue": 71 }
-        ],
-        "interestOverTime": []
-      },
-      "missingFields": [],
-      "source": "sunbrowser",
-      "cached": false,
-      "stale": false,
-      "collectedAt": "2026-08-03T02:04:05.123456789Z",
-      "attempts": 2
-    }
-    ```
-
-    <ResponseField name="source" type="string">
-      `"sunbrowser"` — result came from a live browser collection. `"cache"` — result was served from the server cache.
+  <Expandable title="page fields">
+    <ResponseField name="url" type="string">
+      Final page URL.
     </ResponseField>
 
-    <ResponseField name="cached" type="boolean">
-      Whether this response was served from cache.
+    <ResponseField name="title" type="string">
+      Page title.
     </ResponseField>
+  </Expandable>
+</ResponseField>
 
-    <ResponseField name="stale" type="boolean">
-      Whether the cached result is stale.
-    </ResponseField>
+<ResponseField name="data" type="object">
+  Extracted structured data. Keys match your `fields` definition or the template's output fields.
+</ResponseField>
 
-    <ResponseField name="collectedAt" type="string">
-      RFC3339Nano timestamp of when the result was actually collected.
-    </ResponseField>
+<ResponseField name="missingFields" type="array">
+  List of field keys that were not found.
+</ResponseField>
 
-    <ResponseField name="attempts" type="number">
-      Collection attempt count. Cache HIT responses use `0`; stale responses use the attempt count at the time the Worker reported them.
-    </ResponseField>
-  </Tab>
-  <Tab title="inspect mode">
-    Use `inspect` mode to discover extraction candidates. Copy the `suggestedPlan` into a future `extract` request.
+<ResponseField name="source" type="string">
+  `"sunbrowser"` — result came from a live browser collection. `"cache"` — result was served from the server cache. Present on Trends responses.
+</ResponseField>
 
-    ```json
-    {
-      "mode": "inspect",
-      "page": {
-        "url": "https://example.com/dashboard",
-        "title": "Example Dashboard"
-      },
-      "candidates": {
-        "dom": { "metrics": [], "tables": [] },
-        "network": []
-      },
-      "suggestedPlan": {
-        "fields": {},
-        "schema": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": false
-        }
-      }
-    }
-    ```
-  </Tab>
-</Tabs>
+<ResponseField name="cached" type="boolean">
+  Whether this response was served from cache.
+</ResponseField>
 
-## Error reference
+<ResponseField name="stale" type="boolean">
+  Whether the cached result is stale.
+</ResponseField>
 
-| Code | Error code | Cause |
-|---|---|---|
-| `400` | `INVALID_COUNTRY_CODE` | The `countryCode` value is not recognised. |
-| `400` | `INVALID_KEYWORD` | `keyword` is `null`, numeric, or an empty string. |
-| `400` | `INVALID_TRENDS_COOKIES` | Non-empty or malformed `cookies` were supplied on a `google-trends-explore` request. |
-| `401` | — | `x-api-key` is missing or invalid. |
-| `402` | `INSUFFICIENT_CREDITS` | Account balance too low. |
-| `404` | `CHROME_WEB_STORE_LISTING_UNAVAILABLE` | Chrome Web Store page listing unavailable and CRX manifest fallback could not recover it. |
-| `422` | `SPA_REQUIRED_FIELDS_MISSING` | One or more `required: true` fields were not found. |
-| `429` | — | Request rate limited, or Google Trends upstream rate limit hit. |
-| `502` | — | Proxy or target failure, invalid Trends data, or all candidate identities exhausted. |
-| `503` | — | Queue, Worker, or managed proxy resources unavailable; or Trends identity plan expired. |
-| `504` | — | Navigation or proxy timed out; or Trends response not observed. |
-| `500` | — | Unclassified internal error. |
+<ResponseField name="collectedAt" type="string">
+  RFC3339Nano timestamp of when the result was actually collected.
+</ResponseField>
+
+<ResponseField name="attempts" type="number">
+  Collection attempt count. Cache HIT responses use `0`; stale responses use the attempt count at the time the Worker reported them.
+</ResponseField>
+
+<ResponseField name="candidates" type="object">
+  Present in `inspect` mode. DOM and network extraction candidates discovered on the page.
+</ResponseField>
+
+<ResponseField name="suggestedPlan" type="object">
+  Present in `inspect` mode. A plan with `fields` and `schema` you can copy into a future `extract` request.
+</ResponseField>
+
+| Code | Meaning |
+| --- | --- |
+| 200 | Inspection results or extracted structured data. |
+| 400 | Invalid URL, keyword, proxy, region, User-Agent, or Trends cookies. |
+| 401 | Missing or invalid `x-api-key`. |
+| 402 | Insufficient balance (`INSUFFICIENT_CREDITS`). |
+| 404 | Chrome Web Store listing unavailable and CRX fallback could not recover it. |
+| 422 | Required fields missing, invalid template or field config, or Worker rejected the task. |
+| 429 | Task rate limited, or Google Trends upstream 429. |
+| 502 | Proxy or target failure, invalid Trends data, or all candidate identities exhausted. |
+| 503 | Queue, Worker, or managed resources unavailable; or Trends identity plan expired. |
+| 504 | Task, navigation, or proxy timeout; or Trends response not observed. |
+| 500 | Unclassified task execution failure. |
 
 <Note>
   One credit is consumed after request validation but before the task is enqueued. Request bodies are limited to 1 MiB.
 </Note>
+
+## More examples
+
+<CodeGroup>
+
+```bash Custom fields
+curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com/dashboard",
+    "mode": "extract",
+    "waitUntil": "domcontentloaded",
+    "waitFor": { "selector": "h1", "timeoutMs": 15000 },
+    "fields": {
+      "title":    { "source": "dom", "selector": "h1",           "parse": "string" },
+      "subtitle": { "source": "dom", "selector": "p.subtitle",   "parse": "string" },
+      "count":    { "source": "dom", "selector": ".metric-value", "parse": "number" }
+    },
+    "countryCode": "GLOBAL",
+    "userAgentMode": "random"
+  }'
+```
+
+```bash SimilarWeb template
+curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "template": "similarweb-overview",
+    "url": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
+    "countryCode": "GLOBAL"
+  }'
+```
+
+```bash Google Trends
+curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "template": "google-trends-explore",
+    "keyword": "adspower,playwright"
+  }'
+```
+
+```bash Inspect mode
+curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com/dashboard",
+    "mode": "inspect"
+  }'
+```
+
+</CodeGroup>
+
+<RequestExample>
+
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com/dashboard",
+    "mode": "extract",
+    "waitUntil": "domcontentloaded",
+    "waitFor": { "selector": "h1", "timeoutMs": 15000 },
+    "fields": {
+      "title":    { "source": "dom", "selector": "h1",           "parse": "string" },
+      "subtitle": { "source": "dom", "selector": "p.subtitle",   "parse": "string" },
+      "count":    { "source": "dom", "selector": ".metric-value", "parse": "number" }
+    },
+    "countryCode": "GLOBAL",
+    "userAgentMode": "random"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.adscrawl.net/spa-extract", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-api-key": "YOUR_API_KEY",
+  },
+  body: JSON.stringify({
+    url: "https://example.com/dashboard",
+    mode: "extract",
+    waitUntil: "domcontentloaded",
+    waitFor: { selector: "h1", timeoutMs: 15000 },
+    fields: {
+      title:    { source: "dom", selector: "h1",            parse: "string" },
+      subtitle: { source: "dom", selector: "p.subtitle",    parse: "string" },
+      count:    { source: "dom", selector: ".metric-value", parse: "number" },
+    },
+    countryCode: "GLOBAL",
+    userAgentMode: "random",
+  }),
+});
+
+const result = await response.json();
+console.log(result.data);
+```
+
+```python Python
+import httpx
+
+response = httpx.post(
+    "https://api.adscrawl.net/spa-extract",
+    headers={
+        "content-type": "application/json",
+        "x-api-key": "YOUR_API_KEY",
+    },
+    json={
+        "url": "https://example.com/dashboard",
+        "mode": "extract",
+        "waitUntil": "domcontentloaded",
+        "waitFor": {"selector": "h1", "timeoutMs": 15000},
+        "fields": {
+            "title":    {"source": "dom", "selector": "h1",             "parse": "string"},
+            "subtitle": {"source": "dom", "selector": "p.subtitle",     "parse": "string"},
+            "count":    {"source": "dom", "selector": ".metric-value",  "parse": "number"},
+        },
+        "countryCode": "GLOBAL",
+        "userAgentMode": "random",
+    },
+)
+
+response.raise_for_status()
+print(response.json()["data"])
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 Extract mode
+{
+  "mode": "extract",
+  "page": {
+    "url": "https://example.com/dashboard",
+    "title": "Example Dashboard"
+  },
+  "data": {
+    "title": "Example Dashboard"
+  },
+  "missingFields": []
+}
+```
+
+```json 200 Inspect mode
+{
+  "mode": "inspect",
+  "page": {
+    "url": "https://example.com/dashboard",
+    "title": "Example Dashboard"
+  },
+  "candidates": {
+    "dom": { "metrics": [], "tables": [] },
+    "network": []
+  },
+  "suggestedPlan": {
+    "fields": {},
+    "schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+```json 200 Google Trends
+{
+  "mode": "extract",
+  "page": {
+    "url": "https://trends.google.com/trends/explore?q=adspower%2Cplaywright",
+    "title": "Google Trends"
+  },
+  "data": {
+    "averages": [
+      { "query": "adspower",    "extractedValue": 42 },
+      { "query": "playwright",  "extractedValue": 71 }
+    ],
+    "interestOverTime": []
+  },
+  "missingFields": [],
+  "source": "sunbrowser",
+  "cached": false,
+  "stale": false,
+  "collectedAt": "2026-08-03T02:04:05.123456789Z",
+  "attempts": 2
+}
+```
+
+```json 402 Payment required
+{
+  "code": "INSUFFICIENT_CREDITS"
+}
+```
+
+```json 422 Required fields missing
+{
+  "code": "SPA_REQUIRED_FIELDS_MISSING"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,185 @@
+---
+title: "列出提取模板"
+sidebarTitle: "列出模板"
+description: "获取所有可用的内置提取模板列表，包含每个模板的输入类型、示例 URL、输出字段、默认等待事件和目录元数据，便于在 POST /spa-extract 中直接引用模板 ID。"
+api: "GET /spa-extract/templates"
+playground: "interactive"
+---
+
+获取所有可用的内置提取模板。每个模板都包含所需的输入类型、示例 URL、预期输出字段以及元数据，可将模板 `id` 用于 `POST /spa-extract` 请求。
+
+## 响应
+
+<ResponseField name="templates" type="array">
+  可用提取模板列表。
+
+  <Expandable title="模板字段">
+    <ResponseField name="id" type="string">
+      在 POST /spa-extract 请求中使用的模板 ID。
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      模板的可读名称。
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      模板提取的内容说明。
+    </ResponseField>
+
+    <ResponseField name="urlPattern" type="string">
+      匹配受支持 URL 的正则表达式。
+    </ResponseField>
+
+    <ResponseField name="exampleUrl" type="string">
+      该模板的示例页面 URL。
+    </ResponseField>
+
+    <ResponseField name="version" type="number">
+      模板版本。
+    </ResponseField>
+
+    <ResponseField name="updatedAt" type="string">
+      最后更新时间，ISO 8601 格式。
+    </ResponseField>
+
+    <ResponseField name="outputFields" type="array">
+      模板返回的字段名列表。
+    </ResponseField>
+
+    <ResponseField name="waitUntil" type="string">
+      默认的导航等待事件。
+    </ResponseField>
+
+    <ResponseField name="input" type="object">
+      输入规范。
+
+      <Expandable title="input 字段">
+        <ResponseField name="type" type="string">
+          输入类型，例如 "domain"。
+        </ResponseField>
+
+        <ResponseField name="example" type="string">
+          示例输入值。
+        </ResponseField>
+
+        <ResponseField name="urlTemplate" type="string">
+          包含 {value} 占位符的 URL 模板。
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="catalog" type="object">
+      目录元数据。
+
+      <Expandable title="catalog 字段">
+        <ResponseField name="category" type="string">
+          模板分类。
+        </ResponseField>
+
+        <ResponseField name="featured" type="boolean">
+          是否为推荐模板。
+        </ResponseField>
+
+        <ResponseField name="keywords" type="array">
+          搜索关键词。
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+| 状态码 | 含义 |
+| --- | --- |
+| 200 | 返回启用中的模板及其输入、默认值和输出字段。 |
+| 401 | 缺少或无效的 `x-api-key`。 |
+| 500 | 加载模板目录失败。 |
+
+<Tip>
+  在 `POST /spa-extract` 请求体的 `template` 字段中传入模板 `id`（例如 `"similarweb-overview"`）。
+</Tip>
+
+<RequestExample>
+
+```bash cURL
+curl -sS "https://api.adscrawl.net/spa-extract/templates" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.adscrawl.net/spa-extract/templates", {
+  headers: { "x-api-key": "YOUR_API_KEY" },
+});
+
+const result = await response.json();
+console.log(result.templates);
+```
+
+```python Python
+import httpx
+
+response = httpx.get(
+    "https://api.adscrawl.net/spa-extract/templates",
+    headers={"x-api-key": "YOUR_API_KEY"},
+)
+
+response.raise_for_status()
+print(response.json()["templates"])
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "templates": [
+    {
+      "id": "similarweb-overview",
+      "name": "SimilarWeb Website Overview",
+      "description": "Get public website traffic, engagement, and ranking metrics from SimilarWeb.",
+      "urlPattern": "^https://www\\.similarweb\\.com/website/[^/?#]+/?(?:[?#].*)?$",
+      "exampleUrl": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
+      "version": 5,
+      "updatedAt": "2026-07-18T14:07:33.000Z",
+      "outputFields": [
+        "avgVisitDuration",
+        "avgVisitDurationSeconds",
+        "bounceRate",
+        "categoryRank",
+        "countryRank",
+        "globalRank",
+        "pagesPerVisit",
+        "period",
+        "targetDomain",
+        "totalVisits",
+        "totalVisitsDisplay"
+      ],
+      "waitUntil": "domcontentloaded",
+      "input": {
+        "type": "domain",
+        "example": "dolphin-anty.com",
+        "urlTemplate": "https://www.similarweb.com/website/{value}/#overview"
+      },
+      "catalog": {
+        "category": "analytics",
+        "featured": true,
+        "keywords": ["traffic", "rank", "website analytics"]
+      }
+    }
+  ]
+}
+```
+
+```json 401 未授权
+{
+  "error": "Unauthorized"
+}
+```
+
+```json 500 服务器错误
+{
+  "error": "Failed to load template catalog"
+}
+```
+
+</ResponseExample>

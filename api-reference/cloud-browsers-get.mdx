@@ -1,0 +1,119 @@
+---
+title: "Get Cloud Browser Profile"
+sidebarTitle: "Get Browser"
+description: "Fetch the full state of a single saved cloud browser profile by its persistent UUID. Check runtime status, connect URL, and profile settings."
+api: "GET /cloud-browsers/{id}"
+playground: "interactive"
+---
+
+Fetch the full state of a single saved cloud browser profile by its persistent `id`. Use this endpoint to check the current `runtime.status` of a specific profile, retrieve its `connectUrl` when running, or poll during startup and shutdown. This endpoint accepts `x-api-key`, a session JWT in `Authorization: Bearer <token>`, or a dashboard session cookie.
+
+<ParamField path="id" type="string (UUID)" required>
+  The persistent profile identifier returned by `POST /cloud-browsers` (create), `POST /cloud-browsers/launch`, or `GET /cloud-browsers` (list). This is distinct from the runtime `sessionId`.
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string (UUID)">
+  Persistent profile identifier.
+</ResponseField>
+
+<ResponseField name="remark" type="string | null">
+  Optional label saved at creation. `null` if not set.
+</ResponseField>
+
+<ResponseField name="browserSettings" type="object">
+  Saved configuration (viewport, locale, timezoneId, proxy display info, cookies, fingerprint). Proxy credentials are stripped from responses.
+</ResponseField>
+
+<ResponseField name="proxyDisplayIp" type="string | null">
+  Last observed proxy exit IP address, or `null` if not yet set.
+</ResponseField>
+
+<ResponseField name="proxyDisplayRegion" type="string | null">
+  Last observed proxy region, or `null` if not yet set.
+</ResponseField>
+
+<ResponseField name="lastOpenedAt" type="string (RFC3339) | null">
+  Timestamp of the most recent successful start, or `null` if the profile has never run.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string (RFC3339)">
+  Timestamp of the most recent profile update.
+</ResponseField>
+
+<ResponseField name="runtime" type="object">
+  Current runtime status for this profile. See the runtime fields described in the list response.
+</ResponseField>
+
+| Code | Meaning |
+| --- | --- |
+| `200` | Success |
+| `401` | Unauthenticated |
+| `403` | Session limit reached (`SESSIONS_PER_API_KEY_LIMIT_REACHED`) |
+| `404` | Not found |
+| `500` | Internal error |
+| `503` | Runtime unavailable |
+
+<RequestExample>
+
+```bash cURL
+curl --fail-with-body --silent --show-error --max-time 65 \
+  -X GET 'https://api.adscrawl.net/cloud-browsers/<browser-id>' \
+  -H 'x-api-key: <api-key>'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 Stopped
+{
+  "id": "<browser-id>",
+  "source": "manual",
+  "deleteOnStop": false,
+  "remark": "work profile",
+  "browserSettings": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "proxyDisplayIp": null,
+  "proxyDisplayRegion": null,
+  "lastOpenedAt": null,
+  "updatedAt": "2026-09-07T08:00:00.000Z",
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "stopped"
+  }
+}
+```
+
+```json 200 Running
+{
+  "id": "<browser-id>",
+  "source": "manual",
+  "deleteOnStop": false,
+  "remark": "work profile",
+  "browserSettings": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "proxyDisplayIp": "203.0.113.42",
+  "proxyDisplayRegion": "US",
+  "lastOpenedAt": "2026-09-07T08:30:00.000Z",
+  "updatedAt": "2026-09-07T08:00:00.000Z",
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "running",
+    "sessionId": "<session-id>",
+    "expiresAt": "2026-09-07T09:30:00.000Z",
+    "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
+  }
+}
+```
+
+</ResponseExample>

@@ -84,17 +84,28 @@
             "tab": "API Reference",
             "groups": [
               {
+                "group": "Overview",
+                "pages": [
+                  "api-reference/introduction",
+                  "api-reference/schemas"
+                ]
+              },
+              {
                 "group": "Browser Tasks",
                 "pages": [
                   "api-reference/html",
                   "api-reference/screenshot",
-                  "api-reference/spa-extract"
+                  "api-reference/spa-extract",
+                  "api-reference/spa-extract-templates"
                 ]
               },
               {
                 "group": "Remote CDP",
                 "pages": [
                   "api-reference/cdp-sessions",
+                  "api-reference/cdp-sessions-list",
+                  "api-reference/cdp-sessions-delete",
+                  "api-reference/cdp-sessions-version",
                   "api-reference/cdp-live-token"
                 ]
               },
@@ -102,16 +113,11 @@
                 "group": "Cloud Browsers",
                 "pages": [
                   "api-reference/cloud-browsers-list",
+                  "api-reference/cloud-browsers-get",
                   "api-reference/cloud-browsers-create",
                   "api-reference/cloud-browsers-launch",
                   "api-reference/cloud-browsers-start",
                   "api-reference/cloud-browsers-stop"
-                ]
-              },
-              {
-                "group": "Schemas",
-                "pages": [
-                  "api-reference/schemas"
                 ]
               }
             ]
@@ -176,17 +182,28 @@
             "tab": "API 参考",
             "groups": [
               {
+                "group": "概览",
+                "pages": [
+                  "zh/api-reference/introduction",
+                  "zh/api-reference/schemas"
+                ]
+              },
+              {
                 "group": "浏览器任务",
                 "pages": [
                   "zh/api-reference/html",
                   "zh/api-reference/screenshot",
-                  "zh/api-reference/spa-extract"
+                  "zh/api-reference/spa-extract",
+                  "zh/api-reference/spa-extract-templates"
                 ]
               },
               {
                 "group": "远程 CDP",
                 "pages": [
                   "zh/api-reference/cdp-sessions",
+                  "zh/api-reference/cdp-sessions-list",
+                  "zh/api-reference/cdp-sessions-delete",
+                  "zh/api-reference/cdp-sessions-version",
                   "zh/api-reference/cdp-live-token"
                 ]
               },
@@ -194,16 +211,11 @@
                 "group": "云浏览器",
                 "pages": [
                   "zh/api-reference/cloud-browsers-list",
+                  "zh/api-reference/cloud-browsers-get",
                   "zh/api-reference/cloud-browsers-create",
                   "zh/api-reference/cloud-browsers-launch",
                   "zh/api-reference/cloud-browsers-start",
                   "zh/api-reference/cloud-browsers-stop"
-                ]
-              },
-              {
-                "group": "数据结构",
-                "pages": [
-                  "zh/api-reference/schemas"
                 ]
               }
             ]
@@ -231,5 +243,25 @@
       "cursor"
     ],
     "display": "header"
+  },
+  "api": {
+    "playground": {
+      "display": "interactive"
+    },
+    "examples": {
+      "languages": [
+        "curl",
+        "javascript",
+        "python",
+        "go"
+      ]
+    },
+    "mdx": {
+      "auth": {
+        "method": "key",
+        "name": "x-api-key"
+      },
+      "server": "https://api.adscrawl.net"
+    }
   }
 }

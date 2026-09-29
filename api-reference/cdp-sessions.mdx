@@ -1,28 +1,12 @@
 ---
-title: "CDP Session API — Create, List, Connect, and Delete"
-sidebarTitle: "CDP Sessions"
-description: "Create, list, and delete dedicated Chromium CDP sessions, then connect via Playwright, Puppeteer, or raw CDP WebSocket using residential proxies."
+title: "Create CDP Session"
+sidebarTitle: "Create Session"
+description: "Launch a dedicated Chromium instance and receive a CDP base URL with an embedded data token for authenticated browser control."
+api: "POST /cdp/sessions"
+playground: "interactive"
 ---
-
-These endpoints let you provision dedicated Chromium instances in the cloud and drive them over the Chrome DevTools Protocol (CDP). Use your `x-api-key` to create, list, and delete sessions. A separate data token — embedded automatically in every `cdpBaseUrl` — authenticates the discovery endpoint and the CDP WebSocket so your main API key is never exposed to browser code.
-
----
-
-## POST /cdp/sessions
 
 Create a new dedicated CDP session. The server starts a Chromium instance, applies your `browserSettings`, and returns a `cdpBaseUrl` you can pass directly to `playwright.connectOverCDP()` or use for manual CDP discovery.
-
-### Request headers
-
-<ParamField header="x-api-key" type="string" required>
-  Your full API key from the [dashboard](https://app.adscrawl.net/dashboard/).
-</ParamField>
-
-<ParamField header="content-type" type="string" required>
-  Must be `application/json`.
-</ParamField>
-
-### Request body
 
 <ParamField body="idleTimeoutMs" type="number">
   Milliseconds of inactivity before the session is terminated. Values above the server cap are silently clamped.
@@ -61,7 +45,7 @@ Create a new dedicated CDP session. The server starts a Chromium instance, appli
         </ParamField>
 
         <ParamField body="protocol" type="string">
-          Proxy protocol for the split form — `http` or `socks5`.
+          Proxy protocol for the split form: `http` or `socks5`.
         </ParamField>
 
         <ParamField body="host" type="string">
@@ -69,7 +53,7 @@ Create a new dedicated CDP session. The server starts a Chromium instance, appli
         </ParamField>
 
         <ParamField body="port" type="number">
-          Proxy port (1–65535) for the split form.
+          Proxy port (1 to 65535) for the split form.
         </ParamField>
 
         <ParamField body="username" type="string">
@@ -192,7 +176,7 @@ Create a new dedicated CDP session. The server starts a Chromium instance, appli
   </Expandable>
 </ParamField>
 
-### Responses
+## Response
 
 <ResponseField name="sessionId" type="string">
   Unique identifier for the active session. Use it for all subsequent list, delete, and CDP requests.
@@ -203,16 +187,26 @@ Create a new dedicated CDP session. The server starts a Chromium instance, appli
 </ResponseField>
 
 <ResponseField name="cdpBaseUrl" type="string">
-  Fully-formed base URL for this session. Pass it directly to `playwright.connectOverCDP()`. It already contains the data token as a query parameter — do not replace or append your API key.
+  Fully formed base URL for this session. Pass it directly to `playwright.connectOverCDP()`. It already contains the data token as a query parameter: do not replace or append your API key.
 </ResponseField>
 
 <Note>
   The `cdpBaseUrl` carries an embedded data token that authorizes CDP access. Never replace that token with your `x-api-key`. Store it securely and treat it with the same care as a credential.
 </Note>
 
-### Request examples
+| Status | Meaning |
+|--------|---------|
+| `201`  | Session created successfully. |
+| `400`  | Invalid managed region, custom proxy, or random User-Agent parameters. |
+| `401`  | Missing or invalid `x-api-key`. |
+| `429`  | The API key has reached its concurrent CDP session limit. |
+| `502`  | The browser backend rejected the payload, returned an oversized result, or failed to start the browser. |
+| `503`  | Total capacity exceeded, or the browser backend is unavailable. |
+| `504`  | Session startup or queue timeout. |
+| `500`  | Unclassified internal error. |
 
-<CodeGroup>
+<RequestExample>
+
 ```bash cURL
 curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
   -H "content-type: application/json" \
@@ -241,11 +235,11 @@ curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
   }
 }
 ```
-</CodeGroup>
 
-### Response examples
+</RequestExample>
 
-<CodeGroup>
+<ResponseExample>
+
 ```json 201 Created
 {
   "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
@@ -259,201 +253,5 @@ curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
   "error": "CDP sessions per API key limit reached"
 }
 ```
-</CodeGroup>
 
-| Status | Meaning |
-|--------|---------|
-| `201`  | Session created successfully. |
-| `400`  | Invalid managed region, custom proxy, or random User-Agent parameters. |
-| `401`  | Missing or invalid `x-api-key`. |
-| `429`  | The API key has reached its concurrent CDP session limit. |
-| `502`  | The browser backend rejected the payload, returned an oversized result, or failed to start the browser. |
-| `503`  | Total capacity exceeded, or the browser backend is unavailable. |
-| `504`  | Session startup or queue timeout. |
-| `500`  | Unclassified internal error. |
-
----
-
-## GET /cdp/sessions
-
-List all active CDP sessions associated with your API key.
-
-### Request headers
-
-<ParamField header="x-api-key" type="string" required>
-  Your full API key from the [dashboard](https://app.adscrawl.net/dashboard/).
-</ParamField>
-
-### Request example
-
-```bash cURL
-curl -sS "https://api.adscrawl.net/cdp/sessions" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-### Response example
-
-```json 200 OK
-{
-  "ok": true,
-  "data": [
-    {
-      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
-      "expiresAt": "2026-04-21T10:30:00.000Z",
-      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
-    }
-  ]
-}
-```
-
-| Status | Meaning |
-|--------|---------|
-| `200`  | Array of sessions for the current key. |
-| `401`  | Missing or invalid `x-api-key`. |
-| `500`  | Failed to read sessions or their data tokens. |
-
----
-
-## DELETE /cdp/sessions/:sessionId
-
-Immediately terminate a CDP session and release its capacity.
-
-### Request headers
-
-<ParamField header="x-api-key" type="string" required>
-  Your full API key from the [dashboard](https://app.adscrawl.net/dashboard/).
-</ParamField>
-
-### Path parameters
-
-<ParamField path="sessionId" type="string" required>
-  The session ID to terminate, as returned by `POST /cdp/sessions` or `GET /cdp/sessions`.
-</ParamField>
-
-### Request example
-
-```bash cURL
-curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-### Response examples
-
-<CodeGroup>
-```json 200 Deleted
-{
-  "ok": true
-}
-```
-
-```json 404 Not Found
-{
-  "error": "CDP session not found"
-}
-```
-</CodeGroup>
-
-| Status | Meaning |
-|--------|---------|
-| `200`  | Session deleted successfully. |
-| `401`  | Missing or invalid `x-api-key`. |
-| `403`  | The session does not belong to the current API key. |
-| `404`  | Session ID not found. |
-| `409`  | The session is already in the process of stopping. |
-| `410`  | The session has already expired. |
-| `503`  | The assigned browser backend is unavailable. |
-
-<Tip>
-  Always delete sessions when your automation is complete. Unused sessions count against your concurrency limit until they expire or are explicitly deleted.
-</Tip>
-
----
-
-## GET /cdp/sessions/:sessionId/json/version
-
-Retrieve the Chrome DevTools Protocol discovery JSON for a session. The response includes a `webSocketDebuggerUrl` pre-rewritten to the public, session-scoped CDP WebSocket path — use it directly rather than constructing the URL manually.
-
-### Path parameters
-
-<ParamField path="sessionId" type="string" required>
-  Session ID returned by `POST /cdp/sessions` or `GET /cdp/sessions`.
-</ParamField>
-
-### Query parameters
-
-<ParamField query="token" type="string" required>
-  The data token already embedded in the `cdpBaseUrl` returned when the session was created. Do **not** substitute your `x-api-key` here.
-</ParamField>
-
-### Request example
-
-```bash cURL
-curl -sS "https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN"
-```
-
-### Response example
-
-```json 200 OK
-{
-  "Browser": "Chrome/136.0.0.0",
-  "Protocol-Version": "1.3",
-  "User-Agent": "Mozilla/5.0 ...",
-  "V8-Version": "13.6.233.8",
-  "WebKit-Version": "537.36 (@revision)",
-  "webSocketDebuggerUrl": "wss://api.adscrawl.net/cdp/sessions/SESSION_ID/devtools/browser/BROWSER_ID?token=<data-token>"
-}
-```
-
-| Status | Meaning |
-|--------|---------|
-| `200`  | Chrome discovery JSON with a rewritten `webSocketDebuggerUrl`. |
-| `401`  | The data token is missing or invalid. |
-| `404` / `409` / `410` | The session is missing, stopping, or expired. |
-| `502`  | Failed to fetch upstream CDP discovery from the cloud backend. |
-| `503`  | The session backend is unavailable. |
-
----
-
-## WS /cdp/sessions/:sessionId/devtools/browser/:browserId
-
-Upgrade to a WebSocket connection to the browser's CDP endpoint. CDP messages are proxied bidirectionally between your client and the Chromium instance running in the cloud. Use the `webSocketDebuggerUrl` returned by the discovery endpoint rather than constructing this URL manually.
-
-### Path parameters
-
-<ParamField path="sessionId" type="string" required>
-  Current CDP session ID.
-</ParamField>
-
-<ParamField path="browserId" type="string" required>
-  Browser target ID from the discovery endpoint. Prefer copying the full `webSocketDebuggerUrl` directly instead of assembling this path yourself.
-</ParamField>
-
-### Query parameters
-
-<ParamField query="token" type="string" required>
-  The same data token used for discovery — embedded in `cdpBaseUrl` and in the `webSocketDebuggerUrl` returned by the discovery endpoint.
-</ParamField>
-
-### JavaScript example
-
-```javascript JavaScript
-// Step 1: fetch the discovery document
-const discovery = await fetch(
-  "https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN"
-).then((response) => response.json());
-
-// Step 2: open a WebSocket using the pre-built URL
-const socket = new WebSocket(discovery.webSocketDebuggerUrl);
-
-socket.addEventListener("open", () => {
-  console.log("CDP WebSocket connected");
-});
-```
-
-| Status | Meaning |
-|--------|---------|
-| `101`  | WebSocket upgrade succeeded; CDP messages are now proxied bidirectionally. |
-| `401`  | The data token is missing or invalid. |
-| `404` / `409` / `410` | The session is missing, stopping, or expired. |
-| `502`  | The cloud backend CDP connection failed before the 101 upgrade. |
-| `503`  | The session backend is unavailable. |
+</ResponseExample>

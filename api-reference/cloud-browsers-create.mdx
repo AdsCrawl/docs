@@ -1,31 +1,19 @@
 ---
-title: "Create a Cloud Browser Profile — POST /cloud-browsers"
+title: "Create Browser Profile"
 sidebarTitle: "Create Profile"
-description: "Save a new cloud browser profile with optional viewport, locale, proxy, cookies, and fingerprint settings — without starting a browser session."
+description: "Save a new cloud browser profile with optional viewport, locale, proxy, cookies, and fingerprint settings. No browser session starts and no running quota is consumed."
+api: "POST /cloud-browsers"
+playground: "interactive"
 ---
 
-Creating a profile saves your browser configuration — viewport, locale, timezone, proxy, cookies, and fingerprint — and returns a persistent profile `id`. **No browser starts and no running quota is consumed** at this point. Use the returned `id` to start the browser later with `POST /cloud-browsers/{id}/start`, or to query, update, or delete the profile. When you want to create and start in a single request, use `POST /cloud-browsers/launch` instead.
-
-## Authentication
-
-Include one of the following on every request:
-
-| Method | Header |
-|---|---|
-| API key | `x-api-key: <API_KEY>` |
-| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
-| Dashboard session cookie | _(sent automatically by the browser)_ |
-
-## Request Body
-
-The body must be a single JSON object of at most 1 MiB. An empty object `{}` is a valid request.
+Save a browser configuration (viewport, locale, timezone, proxy, cookies, and fingerprint) and return a persistent profile `id`. No browser starts and no running quota is consumed. Use the returned `id` to start the browser later with `POST /cloud-browsers/{id}/start`, or to query, update, or delete the profile. To create and start in a single request, use `POST /cloud-browsers/launch` instead.
 
 <ParamField body="remark" type="string">
   Optional human-readable label for this profile. Maximum 255 Unicode characters after trimming. Useful for identifying profiles in list responses and the dashboard.
 </ParamField>
 
 <ParamField body="browserSettings" type="object">
-  Optional saved configuration for the browser. Defaults to `{}`. When provided, it must be an object — arrays and scalars are rejected. Saving a proxy here does not replace the required top-level `proxy` field on subsequent API key start requests.
+  Optional saved configuration for the browser. Defaults to `{}`. When provided, it must be an object (arrays and scalars are rejected). Saving a proxy here does not replace the required top-level `proxy` field on subsequent API key start requests.
 
   <Expandable title="browserSettings fields">
     <ParamField body="viewport" type="object">
@@ -38,7 +26,7 @@ The body must be a single JSON object of at most 1 MiB. An empty object `{}` is 
       IANA timezone identifier, such as `Asia/Shanghai`.
     </ParamField>
     <ParamField body="proxy" type="object">
-      Custom proxy configuration saved to the profile. Cannot be combined with `countryCode`. Provide either `server` (e.g. `http://host:port`) or the split form `protocol` + `host` + `port`. Credentials must not be embedded in the URL — supply `username` and `password` as separate fields. Saving a proxy here does **not** satisfy the requirement to send a top-level `proxy` on API key start requests.
+      Custom proxy configuration saved to the profile. Cannot be combined with `countryCode`. Provide either `server` (for example, `http://host:port`) or the split form `protocol` + `host` + `port`. Credentials must not be embedded in the URL. Supply `username` and `password` as separate fields. Saving a proxy here does not satisfy the requirement to send a top-level `proxy` on API key start requests.
     </ParamField>
     <ParamField body="countryCode" type="string">
       Managed proxy region saved to the profile. Use `GLOBAL` for a random popular region, or a two-letter ISO country code such as `FR`. Cannot be combined with `proxy`.
@@ -52,43 +40,31 @@ The body must be a single JSON object of at most 1 MiB. An empty object `{}` is 
   </Expandable>
 </ParamField>
 
-## Responses
-
-### 201 — Profile Created
-
-Returns `{ ok: true, id }`. The profile is immediately in `stopped` state and occupies no running slot.
+## Response
 
 <ResponseField name="ok" type="boolean">
   Always `true` on success.
 </ResponseField>
 
 <ResponseField name="id" type="string (UUID)">
-  Persistent identifier for the new profile. Store this value — you need it for every subsequent start, stop, query, and delete call.
+  Persistent identifier for the new profile. Store this value; you need it for every subsequent start, stop, query, and delete call.
 </ResponseField>
 
 <Note>
   The Free plan allows one saved profile. Check `limit` from `GET /cloud-browsers` to see your current allowance before creating additional profiles.
 </Note>
 
-### 400 — Bad Request
+### Error status codes
 
-Returned for an empty body, `null`, arrays, scalars, invalid field types, an oversized `remark`, invalid cookies, `INVALID_PROXY`, `INVALID_COUNTRY_CODE`, or `COUNTRY_PROXY_CONFLICT` (both `proxy` and `countryCode` supplied together).
+| Code | Meaning |
+| --- | --- |
+| 400 | Empty body, `null`, arrays, scalars, invalid field types, oversized `remark`, invalid cookies, `INVALID_PROXY`, `INVALID_COUNTRY_CODE`, or `COUNTRY_PROXY_CONFLICT` (both `proxy` and `countryCode` supplied together). |
+| 401 | Authentication is missing, invalid, or expired. |
+| 409 | Your saved-profile allowance is full. Delete an existing profile or upgrade your plan before creating a new one. This error is distinct from the running quota error (`CLOUD_BROWSER_CONCURRENCY_LIMIT`). |
+| 500 | An internal service failure. |
 
-### 401 — Unauthenticated
+<RequestExample>
 
-Authentication is missing, invalid, or expired.
-
-### 409 — Profile Limit Reached
-
-Your saved-profile allowance is full. Delete an existing profile or upgrade your plan before creating a new one. This error is distinct from the running quota error (`CLOUD_BROWSER_CONCURRENCY_LIMIT`).
-
-### 500 — Internal Error
-
-An internal service failure.
-
-## Request Examples
-
-<CodeGroup>
 ```bash cURL
 curl --fail-with-body --silent --show-error --max-time 65 \
   -X POST 'https://api.adscrawl.net/cloud-browsers' \
@@ -105,7 +81,7 @@ curl --fail-with-body --silent --show-error --max-time 65 \
 }'
 ```
 
-```javascript Node.js
+```javascript JavaScript
 // Node.js 20+, save as .mjs. Replace proxy placeholders before running.
 const baseUrl = "https://api.adscrawl.net";
 const apiKey = process.env.ADSCRAWL_API_KEY;
@@ -191,9 +167,10 @@ try {
 }
 console.log("Stopped; the saved profile remains", id);
 ```
-</CodeGroup>
 
-## Response Example
+</RequestExample>
+
+<ResponseExample>
 
 ```json 201 Created
 {
@@ -201,3 +178,5 @@ console.log("Stopped; the saved profile remains", id);
   "id": "<browser-id>"
 }
 ```
+
+</ResponseExample>

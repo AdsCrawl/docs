@@ -1,0 +1,185 @@
+---
+title: "List Templates"
+sidebarTitle: "List Templates"
+description: "Retrieve the list of available built-in extraction templates with their input types, example URLs, expected output fields, and metadata."
+api: "GET /spa-extract/templates"
+playground: "interactive"
+---
+
+Retrieve the list of available built-in extraction templates. Each template includes its required input type, example URL, expected output fields, and metadata.
+
+## Response
+
+<ResponseField name="templates" type="array">
+  List of available extraction templates.
+
+  <Expandable title="template fields">
+    <ResponseField name="id" type="string">
+      Template ID used in POST /spa-extract requests.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Human-readable template name.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      What the template extracts.
+    </ResponseField>
+
+    <ResponseField name="urlPattern" type="string">
+      Regex pattern matching supported URLs.
+    </ResponseField>
+
+    <ResponseField name="exampleUrl" type="string">
+      Example page URL for this template.
+    </ResponseField>
+
+    <ResponseField name="version" type="number">
+      Template version.
+    </ResponseField>
+
+    <ResponseField name="updatedAt" type="string">
+      Last update timestamp in ISO 8601 format.
+    </ResponseField>
+
+    <ResponseField name="outputFields" type="array">
+      List of field names the template returns.
+    </ResponseField>
+
+    <ResponseField name="waitUntil" type="string">
+      Default navigation wait event.
+    </ResponseField>
+
+    <ResponseField name="input" type="object">
+      Input specification.
+
+      <Expandable title="input fields">
+        <ResponseField name="type" type="string">
+          Input type, for example "domain".
+        </ResponseField>
+
+        <ResponseField name="example" type="string">
+          Example input value.
+        </ResponseField>
+
+        <ResponseField name="urlTemplate" type="string">
+          URL template with {value} placeholder.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="catalog" type="object">
+      Catalog metadata.
+
+      <Expandable title="catalog fields">
+        <ResponseField name="category" type="string">
+          Template category.
+        </ResponseField>
+
+        <ResponseField name="featured" type="boolean">
+          Whether the template is featured.
+        </ResponseField>
+
+        <ResponseField name="keywords" type="array">
+          Search keywords.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+| Code | Meaning |
+| --- | --- |
+| 200 | Active templates with their inputs, defaults, and output fields. |
+| 401 | Missing or invalid `x-api-key`. |
+| 500 | Failed to load the template catalog. |
+
+<Tip>
+  Pass the template `id` (for example, `"similarweb-overview"`) as the `template` field in your `POST /spa-extract` request body.
+</Tip>
+
+<RequestExample>
+
+```bash cURL
+curl -sS "https://api.adscrawl.net/spa-extract/templates" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.adscrawl.net/spa-extract/templates", {
+  headers: { "x-api-key": "YOUR_API_KEY" },
+});
+
+const result = await response.json();
+console.log(result.templates);
+```
+
+```python Python
+import httpx
+
+response = httpx.get(
+    "https://api.adscrawl.net/spa-extract/templates",
+    headers={"x-api-key": "YOUR_API_KEY"},
+)
+
+response.raise_for_status()
+print(response.json()["templates"])
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "templates": [
+    {
+      "id": "similarweb-overview",
+      "name": "SimilarWeb Website Overview",
+      "description": "Get public website traffic, engagement, and ranking metrics from SimilarWeb.",
+      "urlPattern": "^https://www\\.similarweb\\.com/website/[^/?#]+/?(?:[?#].*)?$",
+      "exampleUrl": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
+      "version": 5,
+      "updatedAt": "2026-07-18T14:07:33.000Z",
+      "outputFields": [
+        "avgVisitDuration",
+        "avgVisitDurationSeconds",
+        "bounceRate",
+        "categoryRank",
+        "countryRank",
+        "globalRank",
+        "pagesPerVisit",
+        "period",
+        "targetDomain",
+        "totalVisits",
+        "totalVisitsDisplay"
+      ],
+      "waitUntil": "domcontentloaded",
+      "input": {
+        "type": "domain",
+        "example": "dolphin-anty.com",
+        "urlTemplate": "https://www.similarweb.com/website/{value}/#overview"
+      },
+      "catalog": {
+        "category": "analytics",
+        "featured": true,
+        "keywords": ["traffic", "rank", "website analytics"]
+      }
+    }
+  ]
+}
+```
+
+```json 401 Unauthorized
+{
+  "error": "Unauthorized"
+}
+```
+
+```json 500 Server error
+{
+  "error": "Failed to load template catalog"
+}
+```
+
+</ResponseExample>

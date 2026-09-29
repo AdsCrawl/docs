@@ -1,28 +1,16 @@
 ---
-title: "Create and Launch a Browser — POST /cloud-browsers/launch"
+title: "Create and Launch Browser"
 sidebarTitle: "Launch Browser"
 description: "Create a cloud browser profile and start it in one request. Returns 201 only after the browser reaches running state with a live connectUrl."
+api: "POST /cloud-browsers/launch"
+playground: "interactive"
 ---
 
-Use this endpoint when you want a running browser immediately without a separate create-then-start flow. A single `POST /cloud-browsers/launch` saves a new profile **and** starts it, blocking until the browser reaches `running` state before returning `201`. The response includes `runtime.connectUrl` — open that URL in a browser signed in as the profile owner to access the interactive session. The saved profile persists after you stop the browser and can be restarted, queried, or deleted just like any manually created profile.
+Use this endpoint when you want a running browser immediately without a separate create-then-start flow. A single `POST /cloud-browsers/launch` saves a new profile and starts it, blocking until the browser reaches `running` state before returning `201`. The response includes `runtime.connectUrl`. Open that URL in a browser signed in as the profile owner to access the interactive session. The saved profile persists after you stop the browser and can be restarted, queried, or deleted just like any manually created profile.
 
 <Warning>
-  Each call to this endpoint creates a **new** profile with no idempotency key. Never automatically retry a failed launch request. If the response includes an `id`, inspect that profile and call `POST /cloud-browsers/{id}/stop` (with retries) before attempting a new launch.
+  Each call to this endpoint creates a new profile with no idempotency key. Never automatically retry a failed launch request. If the response includes an `id`, inspect that profile and call `POST /cloud-browsers/{id}/stop` (with retries) before attempting a new launch.
 </Warning>
-
-## Authentication
-
-Include one of the following on every request:
-
-| Method | Header |
-|---|---|
-| API key | `x-api-key: <API_KEY>` |
-| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
-| Dashboard session cookie | _(sent automatically by the browser)_ |
-
-## Request Body
-
-The body must be a single JSON object of at most 1 MiB. Unknown top-level fields — including `countryCode`, `source`, and `browserSettings` — are rejected with `400`.
 
 <ParamField body="proxy" type="object" required>
   Custom proxy configuration. Required on every request regardless of authentication method. No saved proxy, managed region, or previous run's proxy can replace this field.
@@ -50,21 +38,19 @@ The body must be a single JSON object of at most 1 MiB. Unknown top-level fields
 </ParamField>
 
 <ParamField body="apiKeyId" type="string (UUID)">
-  Required when authenticating with a session cookie or `Authorization: Bearer`. Selects which of your active API keys to use for billing. When authenticating with `x-api-key` directly, this field is optional — if supplied, it must match the key used in the header.
+  Required when authenticating with a session cookie or `Authorization: Bearer`. Selects which of your active API keys to use for billing. When authenticating with `x-api-key` directly, this field is optional. If supplied, it must match the key used in the header.
 </ParamField>
 
-## Responses
+## Response
 
-### 201 — Browser Running
-
-Returned **only** after the browser reaches `running` state. The `Location` response header points to `GET /cloud-browsers/{id}` for subsequent queries.
+Returned only after the browser reaches `running` state. The `Location` response header points to `GET /cloud-browsers/{id}` for subsequent queries.
 
 <ResponseField name="ok" type="boolean">
   Always `true` on success.
 </ResponseField>
 
 <ResponseField name="id" type="string (UUID)">
-  Persistent profile identifier. Store this immediately — you need it to stop, query, or delete the browser.
+  Persistent profile identifier. Store this immediately; you need it to stop, query, or delete the browser.
 </ResponseField>
 
 <ResponseField name="source" type="string">
@@ -92,44 +78,27 @@ Returned **only** after the browser reaches `running` state. The `Location` resp
       Session expiry timestamp.
     </ResponseField>
     <ResponseField name="connectUrl" type="string">
-      Direct URL to the interactive browser viewer. Open this in a browser signed in as the profile owner. Use the URL exactly as returned — never construct it manually or append API keys, cookies, or proxy credentials.
+      Direct URL to the interactive browser viewer. Open this in a browser signed in as the profile owner. Use the URL exactly as returned; never construct it manually or append API keys, cookies, or proxy credentials.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-### 400 — Bad Request
+### Error status codes
 
-`PROXY_REQUIRED`, `INVALID_PROXY`, `INVALID_TABS`, `INVALID_COOKIES`, or `INVALID_FINGERPRINT_SETTINGS`. Explicit `null`, unknown fields, invalid JSON, and incorrect types are all rejected before any profile is created.
-
-### 401 — Unauthenticated
-
-Authentication is missing, invalid, or expired.
-
-### 402 — Payment Required
-
-`PAID_PLAN_REQUIRED` or `INSUFFICIENT_CREDITS`. No profile is created.
-
-### 403 — Forbidden
-
-The supplied `apiKeyId` belongs to another user or does not match the authenticated key. No profile is created.
-
-### 409 — Conflict
-
-Either the saved-profile allowance is full (`Cloud Browser limit reached`) or the running allowance is full or zero (`CLOUD_BROWSER_CONCURRENCY_LIMIT`). When a profile **was** created before the conflict was detected, the response includes `id`, `source: "launch"`, `deleteOnStop: false`, `deleted: false`, and the actual runtime status. The profile remains saved and counts toward your allowance.
-
-### 502 / 503 / 504 / 500 — Runtime or Server Error
-
-Errors that occur after profile creation include `id`, `runtime`, and `Location` in the response body. Cleanup may leave the session in `stopping` state, which still reserves a running slot until confirmed stopped.
+| Code | Meaning |
+| --- | --- |
+| 400 | `PROXY_REQUIRED`, `INVALID_PROXY`, `INVALID_TABS`, `INVALID_COOKIES`, or `INVALID_FINGERPRINT_SETTINGS`. Explicit `null`, unknown fields, invalid JSON, and incorrect types are all rejected before any profile is created. |
+| 401 | Authentication is missing, invalid, or expired. |
+| 402 | `PAID_PLAN_REQUIRED` or `INSUFFICIENT_CREDITS`. No profile is created. |
+| 403 | The supplied `apiKeyId` belongs to another user or does not match the authenticated key. No profile is created. |
+| 409 | Either the saved-profile allowance is full (`Cloud Browser limit reached`) or the running allowance is full or zero (`CLOUD_BROWSER_CONCURRENCY_LIMIT`). When a profile was created before the conflict was detected, the response includes `id`, `source: "launch"`, `deleteOnStop: false`, `deleted: false`, and the actual runtime status. The profile remains saved and counts toward your allowance. |
+| 502 / 503 / 504 / 500 | Errors that occur after profile creation include `id`, `runtime`, and `Location` in the response body. Cleanup may leave the session in `stopping` state, which still reserves a running slot until confirmed stopped. |
 
 <Warning>
-  When the response contains an `id` alongside a 5xx status, do **not** automatically retry the launch. Instead, call `POST /cloud-browsers/{id}/stop` with a bounded retry loop until `runtime.status` reaches `stopped`, then decide whether to launch again.
+  When the response contains an `id` alongside a 5xx status, do not automatically retry the launch. Instead, call `POST /cloud-browsers/{id}/stop` with a bounded retry loop until `runtime.status` reaches `stopped`, then decide whether to launch again.
 </Warning>
 
-## Request Example
-
-<Warning>
-  Use `--max-time 200` (or equivalent) for your HTTP client. The endpoint waits up to 60 seconds for the browser to reach `running` state, and cleanup after a failed startup can take up to 120 additional seconds.
-</Warning>
+<RequestExample>
 
 ```bash cURL
 curl --fail-with-body --silent --show-error --max-time 200 \
@@ -160,9 +129,10 @@ curl --fail-with-body --silent --show-error --max-time 200 \
 }'
 ```
 
-## Response Examples
+</RequestExample>
 
-<CodeGroup>
+<ResponseExample>
+
 ```json 201 Running
 {
   "ok": true,
@@ -195,4 +165,5 @@ curl --fail-with-body --silent --show-error --max-time 200 \
   }
 }
 ```
-</CodeGroup>
+
+</ResponseExample>

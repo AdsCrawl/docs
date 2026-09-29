@@ -1,24 +1,12 @@
 ---
-title: "创建云浏览器配置 — POST /cloud-browsers"
-sidebarTitle: "Create Profile"
-description: "保存一个新的云浏览器配置，可选设置视口、地区语言、代理、Cookie 和指纹参数 — 无需启动浏览器会话。"
+title: "创建浏览器配置"
+sidebarTitle: "创建配置文件"
+description: "保存新的云浏览器配置，可选设置视口、地区语言、代理、Cookie 和指纹参数。无需启动浏览器会话，也不消耗运行配额。"
+api: "POST /cloud-browsers"
+playground: "interactive"
 ---
 
-创建配置会保存你的浏览器设置，包括视口、地区语言、时区、代理、Cookie 和指纹，并返回一个持久的配置 `id`。此时 **不会启动浏览器，也不会消耗运行配额**。使用返回的 `id` 稍后通过 `POST /cloud-browsers/{id}/start` 启动浏览器，或用于查询、更新、删除该配置。如果你想在单次请求中创建并启动浏览器，请改用 `POST /cloud-browsers/launch`。
-
-## 认证
-
-每次请求需包含以下之一：
-
-| 方式 | Header |
-| --- | --- |
-| API 密钥 | `x-api-key: <API_KEY>` |
-| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
-| 控制台会话 cookie | _(由浏览器自动发送)_ |
-
-## 请求体
-
-请求体必须为单个 JSON 对象，最大 1 MiB。空对象 `{}` 也是有效请求。
+创建配置会保存你的浏览器设置，包括视口、地区语言、时区、代理、Cookie 和指纹，并返回一个持久的配置 `id`。此时不会启动浏览器，也不会消耗运行配额。使用返回的 `id` 稍后通过 `POST /cloud-browsers/{id}/start` 启动浏览器，或用于查询、更新、删除该配置。如果你想在单次请求中创建并启动浏览器，请改用 `POST /cloud-browsers/launch`。
 
 <ParamField body="remark" type="string">
   可选的可读标签，用于标识此配置。最多 255 个 Unicode 字符（去除首尾空格后）。在列表响应和控制台中有助于识别配置。
@@ -41,7 +29,7 @@ description: "保存一个新的云浏览器配置，可选设置视口、地区
     </ParamField>
 
     <ParamField body="proxy" type="object">
-      保存到配置中的自定义代理设置。不能与 `countryCode` 同时使用。请提供 `server`（例如 `http://host:port`）或拆分形式 `protocol` + `host` + `port`。凭证不能嵌入在 URL 中，需单独提供 `username` 和 `password`。此处保存的代理 **不会** 满足在 API 密钥启动请求中发送顶层 `proxy` 的要求。
+      保存到配置中的自定义代理设置。不能与 `countryCode` 同时使用。请提供 `server`（例如 `http://host:port`）或拆分形式 `protocol` + `host` + `port`。凭证不能嵌入在 URL 中，需单独提供 `username` 和 `password`。此处保存的代理不会满足在 API 密钥启动请求中发送顶层 `proxy` 的要求。
     </ParamField>
 
     <ParamField body="countryCode" type="string">
@@ -60,10 +48,6 @@ description: "保存一个新的云浏览器配置，可选设置视口、地区
 
 ## 响应
 
-### 201 — 配置已创建
-
-返回 `{ ok: true, id }`。配置立即进入 `stopped` 状态，不占用运行槽位。
-
 <ResponseField name="ok" type="boolean">
   成功时始终为 `true`。
 </ResponseField>
@@ -76,25 +60,16 @@ description: "保存一个新的云浏览器配置，可选设置视口、地区
   Free 套餐允许保存一个配置。创建额外配置前，请先通过 `GET /cloud-browsers` 查看 `limit` 了解当前配额。
 </Note>
 
-### 400 — Bad Request
+### 错误状态码
 
-请求体为空、`null`、数组、标量、字段类型无效、`remark` 过长、Cookie 无效、`INVALID_PROXY`、`INVALID_COUNTRY_CODE`，或同时提供了 `proxy` 和 `countryCode`（`COUNTRY_PROXY_CONFLICT`）时返回。
+| 状态码 | 含义 |
+| --- | --- |
+| 400 | 请求体为空、`null`、数组、标量、字段类型无效、`remark` 过长、Cookie 无效、`INVALID_PROXY`、`INVALID_COUNTRY_CODE`，或同时提供了 `proxy` 和 `countryCode`（`COUNTRY_PROXY_CONFLICT`）。 |
+| 401 | 认证缺失、无效或已过期。 |
+| 409 | 你的已保存配置配额已满。删除现有配置或升级套餐后再创建新配置。此错误与运行配额错误（`CLOUD_BROWSER_CONCURRENCY_LIMIT`）不同。 |
+| 500 | 内部服务故障。 |
 
-### 401 — Unauthenticated
-
-认证缺失、无效或已过期。
-
-### 409 — 配置数量已达上限
-
-你的已保存配置配额已满。删除现有配置或升级套餐后再创建新配置。此错误与运行配额错误（`CLOUD_BROWSER_CONCURRENCY_LIMIT`）不同。
-
-### 500 — Internal Error
-
-内部服务故障。
-
-## 请求示例
-
-<CodeGroup>
+<RequestExample>
 
 ```bash cURL
 curl --fail-with-body --silent --show-error --max-time 65 \
@@ -112,7 +87,7 @@ curl --fail-with-body --silent --show-error --max-time 65 \
 }'
 ```
 
-```javascript Node.js
+```javascript JavaScript
 // Node.js 20+，保存为 .mjs。运行前替换代理占位符。
 const baseUrl = "https://api.adscrawl.net";
 const apiKey = process.env.ADSCRAWL_API_KEY;
@@ -199,9 +174,9 @@ try {
 console.log("Stopped; the saved profile remains", id);
 ```
 
-</CodeGroup>
+</RequestExample>
 
-## 响应示例
+<ResponseExample>
 
 ```json 201 Created
 {
@@ -209,3 +184,5 @@ console.log("Stopped; the saved profile remains", id);
   "id": "<browser-id>"
 }
 ```
+
+</ResponseExample>

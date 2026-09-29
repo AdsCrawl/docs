@@ -1,0 +1,58 @@
+---
+title: "Delete CDP Session"
+sidebarTitle: "Delete Session"
+description: "Immediately terminate a CDP session and release its capacity so it no longer counts against your concurrency limit."
+api: "DELETE /cdp/sessions/{sessionId}"
+playground: "interactive"
+---
+
+Immediately terminate a CDP session and release its capacity.
+
+<ParamField path="sessionId" type="string" required>
+  The session ID to terminate, as returned by `POST /cdp/sessions` or `GET /cdp/sessions`.
+</ParamField>
+
+## Response
+
+<ResponseField name="ok" type="boolean">
+  Whether the deletion succeeded.
+</ResponseField>
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Session deleted successfully. |
+| `401` | Missing or invalid `x-api-key`. |
+| `403` | The session does not belong to the current API key. |
+| `404` | Session ID not found. |
+| `409` | The session is already in the process of stopping. |
+| `410` | The session has already expired. |
+| `503` | The assigned browser backend is unavailable. |
+
+<Tip>
+  Always delete sessions when your automation is complete. Unused sessions count against your concurrency limit until they expire or are explicitly deleted.
+</Tip>
+
+<RequestExample>
+
+```bash cURL
+curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 Deleted
+{
+  "ok": true
+}
+```
+
+```json 404 Not Found
+{
+  "error": "CDP session not found"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,119 @@
+---
+title: "获取云浏览器配置"
+sidebarTitle: "获取浏览器"
+description: "通过持久性 UUID 标识符获取单个已保存云浏览器配置文件的完整状态，返回的配置详情包括当前运行时状态、交互式查看器连接地址、代理出口 IP 和区域信息、浏览器指纹设置等内容，可用于在启动和关闭期间轮询，也可用于随时检查特定配置文件的实时运行情况和可用的交互式连接入口。"
+api: "GET /cloud-browsers/{id}"
+playground: "interactive"
+---
+
+通过持久性 `id` 获取单个已保存云浏览器配置文件的完整状态。使用此端点检查特定配置文件的当前 `runtime.status`，在运行时获取其 `connectUrl`，或在启动和关闭期间轮询。响应形状与列表端点返回的 `data` 数组中的配置文件对象相同，但直接返回，没有外层包装。此端点接受 `x-api-key`、`Authorization: Bearer` 会话 JWT 或 Dashboard 会话 Cookie 进行认证。
+
+<ParamField path="id" type="string (UUID)" required>
+  由 `POST /cloud-browsers`（创建）、`POST /cloud-browsers/launch`，或 `GET /cloud-browsers`（列表）返回的持久性配置文件标识符。这与运行时 `sessionId` 不同。
+</ParamField>
+
+## 响应
+
+<ResponseField name="id" type="string (UUID)">
+  持久性配置文件标识符。
+</ResponseField>
+
+<ResponseField name="remark" type="string | null">
+  创建时保存的可选标签。如果未设置则为 `null`。
+</ResponseField>
+
+<ResponseField name="browserSettings" type="object">
+  已保存的配置（viewport、locale、timezoneId、代理显示信息、cookies、指纹）。代理凭据已从响应中移除。
+</ResponseField>
+
+<ResponseField name="proxyDisplayIp" type="string | null">
+  最后观察到的代理出口 IP 地址，如果未设置则为 `null`。
+</ResponseField>
+
+<ResponseField name="proxyDisplayRegion" type="string | null">
+  最后观察到的代理区域，如果未设置则为 `null`。
+</ResponseField>
+
+<ResponseField name="lastOpenedAt" type="string (RFC3339) | null">
+  最近一次成功启动的时间戳，如果配置文件从未运行过则为 `null`。
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string (RFC3339)">
+  最近一次配置文件更新的时间戳。
+</ResponseField>
+
+<ResponseField name="runtime" type="object">
+  此配置文件的当前运行时状态。参见上面列表响应中描述的运行时字段。
+</ResponseField>
+
+| Code | Meaning |
+| --- | --- |
+| `200` | 成功 |
+| `401` | 未认证 |
+| `403` | 会话数已达上限 |
+| `404` | 未找到 |
+| `500` | 内部错误 |
+| `503` | 运行时不可用 |
+
+<RequestExample>
+
+```bash cURL
+curl --fail-with-body --silent --show-error --max-time 65 \
+  -X GET 'https://api.adscrawl.net/cloud-browsers/<browser-id>' \
+  -H 'x-api-key: <api-key>'
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 已停止
+{
+  "id": "<browser-id>",
+  "source": "manual",
+  "deleteOnStop": false,
+  "remark": "work profile",
+  "browserSettings": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "proxyDisplayIp": null,
+  "proxyDisplayRegion": null,
+  "lastOpenedAt": null,
+  "updatedAt": "2026-09-07T08:00:00.000Z",
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "stopped"
+  }
+}
+```
+
+```json 200 运行中
+{
+  "id": "<browser-id>",
+  "source": "manual",
+  "deleteOnStop": false,
+  "remark": "work profile",
+  "browserSettings": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "proxyDisplayIp": "203.0.113.42",
+  "proxyDisplayRegion": "US",
+  "lastOpenedAt": "2026-09-07T08:30:00.000Z",
+  "updatedAt": "2026-09-07T08:00:00.000Z",
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "running",
+    "sessionId": "<session-id>",
+    "expiresAt": "2026-09-07T09:30:00.000Z",
+    "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
+  }
+}
+```
+
+</ResponseExample>

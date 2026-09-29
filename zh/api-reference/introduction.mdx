@@ -1,0 +1,80 @@
+---
+title: "AdsCrawl REST API 简介"
+sidebarTitle: "简介"
+description: "介绍 AdsCrawl REST API 的基础请求地址、认证方式（通过 x-api-key 请求头传递）、JSON 请求体格式、积分消耗计费规则、常见 HTTP 状态码含义与处理建议，以及指向浏览器任务、远程 CDP 和云浏览器所有接口分组和模型定义的快捷导航链接。"
+---
+
+AdsCrawl REST API 支持以编程方式渲染网页、截取屏幕截图、提取 SPA 数据、管理远程 CDP 会话以及启动持久化云浏览器。本页介绍基础请求地址、认证方式、积分计费规则、常见 HTTP 状态码，以及所有接口分组的入口。
+
+## 基础地址
+
+所有接口均通过 HTTPS 访问：
+
+```text
+https://api.adscrawl.net
+```
+
+## 认证方式
+
+几乎所有端点都需要在请求头中携带 API 密钥 `x-api-key`。请在 [AdsCrawl 控制台](https://app.adscrawl.net/dashboard/) 生成和管理密钥。请将密钥保存在环境变量或密钥管理器中，切勿在客户端代码或公开仓库中暴露。
+
+云浏览器生命周期端点（`/cloud-browsers/*`）也接受通过 `Authorization: Bearer <SESSION_JWT>` 传递的会话 JWT，或 Dashboard 会话 Cookie。
+
+所有带有 JSON 请求体的请求都必须包含：
+
+```text
+content-type: application/json
+```
+
+## 积分消耗
+
+各项操作按以下规则扣除积分。
+
+| 操作 | 积分消耗 |
+| --- | --- |
+| `POST /html` | 每次请求 1 积分 |
+| `POST /screenshot` | 每次请求 1 积分 |
+| `POST /spa-extract` | 每次请求 1 积分 |
+| Cloud Browser（运行中） | 每启动分钟 1 积分，不足一分钟按一分钟计 |
+
+积分在请求校验通过后、任务执行前扣除。浏览器任务执行失败后不会退还积分。云浏览器计费在首次确认停止后结束。
+
+## 常见状态码
+
+接口使用标准 HTTP 响应状态码。
+
+| 状态码 | 含义 | 常见原因 |
+| --- | --- | --- |
+| `200` | 成功 | 请求正常完成。 |
+| `400` | 请求错误 | JSON 格式错误、URL 无效、请求体超过 1 MiB，或参数不受支持。 |
+| `401` | 未认证 | 缺少或无效的 `x-api-key`。 |
+| `402` | 需要付费 | 积分不足（`INSUFFICIENT_CREDITS`）或需要付费套餐（`PAID_PLAN_REQUIRED`）。 |
+| `403` | 禁止访问 | 引用的会话由其他 API 密钥创建。 |
+| `404` | 未找到 | 请求的配置文件或会话不存在。 |
+| `409` | 冲突 | 云浏览器并发上限已达（`CLOUD_BROWSER_CONCURRENCY_LIMIT`）。 |
+| `422` | 无法处理 | 内容选择器未找到或可读性提取失败。 |
+| `429` | 请求过多 | 触发速率限制或单密钥会话上限。请使用指数退避重试。 |
+| `502` | 网关错误 | 代理不可达或目标服务器返回错误。 |
+| `503` | 服务不可用 | 运行时或托管代理暂时不可用（`CDP_WORKER_UNAVAILABLE`、`DYNAMIC_PROXY_NOT_CONFIGURED`）。 |
+| `504` | 网关超时 | 导航或代理连接超时。 |
+| `500` | 内部错误 | 未分类的服务器故障。请使用指数退避重试。 |
+
+## 接口分组
+
+<CardGroup cols={2}>
+  <Card title="浏览器任务" icon="browser" href="/zh/api-reference/html">
+    通过住宅代理和随机指纹渲染 HTML、截取屏幕截图并提取 SPA 数据。
+  </Card>
+
+  <Card title="远程 CDP" icon="terminal" href="/zh/api-reference/cdp-sessions">
+    创建并管理远程 Chrome DevTools Protocol 会话，实现底层浏览器控制。
+  </Card>
+
+  <Card title="云浏览器" icon="cloud" href="/zh/api-reference/cloud-browsers-list">
+    保存、启动、开启和停止带有实时交互式查看器的持久化云浏览器配置文件。
+  </Card>
+
+  <Card title="模型定义" icon="code" href="/zh/api-reference/schemas">
+    查看整个 API 使用的共享请求和响应对象定义。
+  </Card>
+</CardGroup>

@@ -1,27 +1,12 @@
 ---
-title: "POST /screenshot — Capture a Page or Element as PNG"
-sidebarTitle: "POST /screenshot"
-description: "Render any URL in a real browser and return a full-page or element-scoped PNG screenshot, routed through residential proxies with fingerprint spoofing."
+title: "Capture Screenshot"
+sidebarTitle: "Screenshot"
+description: "Render any URL in a real browser and return a full-page or element-scoped PNG screenshot, routed through residential proxies."
+api: "POST /screenshot"
+playground: "interactive"
 ---
 
-Use `POST /screenshot` to capture a pixel-perfect PNG of any public webpage. Request a full-page capture or target a specific element with a CSS selector — all rendered in a real browser with randomised fingerprints and residential proxy routing so you see exactly what a real visitor sees.
-
-## Endpoint
-
-```
-POST https://api.adscrawl.net/screenshot
-```
-
-## Authentication
-
-Every request must include your API key in the `x-api-key` header. Generate keys from the [dashboard](https://app.adscrawl.net/dashboard/).
-
-| Header | Type | Description |
-|---|---|---|
-| `x-api-key` | `string` **Required** | Full API key created in the dashboard. |
-| `content-type` | `string` **Required** | Must be `application/json`. |
-
-## Request body
+Use `POST /screenshot` to capture a pixel-perfect PNG of any public webpage. Request a full-page capture or target a specific element with a CSS selector. The capture is performed in a real browser with randomized fingerprints and residential proxy routing so you see exactly what a real visitor sees.
 
 <ParamField body="url" type="string" required>
   Target page URL. Must be a reachable HTTP(S) URL using port 80 or 443.
@@ -91,9 +76,9 @@ Every request must include your API key in the `x-api-key` header. Generate keys
 <ParamField body="countryCode" type="string">
   Managed residential proxy region. Cannot be combined with `proxy`.
 
-  - `"GLOBAL"` — dynamic exit from 15 popular regions.
-  - Two-letter country code (e.g. `"US"`, `"DE"`) — prefers a trusted proxy for that region with dynamic fallback.
-  - Omitted — a random trusted proxy is selected automatically.
+  - `"GLOBAL"`: dynamic exit from 15 popular regions.
+  - Two-letter country code (e.g. `"US"`, `"DE"`): prefers a trusted proxy for that region with dynamic fallback.
+  - Omitted: a random trusted proxy is selected automatically.
 </ParamField>
 
 <ParamField body="userAgentMode" type="string">
@@ -142,28 +127,30 @@ Every request must include your API key in the `x-api-key` header. Generate keys
   </Expandable>
 </ParamField>
 
-## Responses
+## Response
 
-| Code | Content-Type | Description |
-|---|---|---|
-| `200` | `image/png` | PNG binary stream of the captured page or element. |
-| `400` | `application/json` | Invalid JSON, URL, cookies, proxy, region, or User-Agent parameters. Bodies over 1 MiB are also rejected. |
-| `401` | `application/json` | Missing or invalid `x-api-key`. |
-| `402` | `application/json` | Insufficient balance. Returns `INSUFFICIENT_CREDITS`, `balance`, and `requiredCredits`. |
-| `422` | `application/json` | Selector not found (`CONTENT_SELECTOR_NOT_FOUND`) or invalid Worker payload. |
-| `429` | `application/json` | Task rate limited. |
-| `502` | `application/json` | Proxy unreachable, target HTTP failure, or oversized result. |
-| `503` | `application/json` | Queue, Worker, managed proxy, or User-Agent resources unavailable. |
-| `504` | `application/json` | Task, navigation, or proxy connection timed out. |
-| `500` | `application/json` | Unclassified task execution failure. |
+| Code | Meaning |
+| --- | --- |
+| `200` | Success. Returns an `image/png` binary stream of the captured page or element. |
+| `400` | Invalid JSON, URL, cookies, proxy, region, or User-Agent. Body over 1 MiB. |
+| `401` | Missing or invalid `x-api-key`. |
+| `402` | Insufficient balance. Returns `INSUFFICIENT_CREDITS`, `balance`, and `requiredCredits`. |
+| `422` | Selector not found (`CONTENT_SELECTOR_NOT_FOUND`) or invalid Worker payload. |
+| `429` | Task rate limited. |
+| `502` | Proxy unreachable or target HTTP failure. |
+| `503` | Queue, Worker, managed proxy, or User-Agent resources unavailable. |
+| `504` | Task, navigation, or proxy connection timed out. |
+| `500` | Unclassified task execution failure. |
 
 <Note>
   When using `selector`, the server waits for the element to appear before capturing it. If the element is not found within the navigation timeout, the response is `422 CONTENT_SELECTOR_NOT_FOUND`.
 </Note>
 
-## Code examples
+<Note>
+  One credit is consumed after request validation but before the task is enqueued. Request bodies are limited to 1 MiB.
+</Note>
 
-<CodeGroup>
+<RequestExample>
 
 ```bash cURL — full page
 curl -sS -X POST "https://api.adscrawl.net/screenshot" \
@@ -193,10 +180,6 @@ curl -sS -X POST "https://api.adscrawl.net/screenshot" \
   }' \
   --output hero.png
 ```
-
-</CodeGroup>
-
-<CodeGroup>
 
 ```javascript JavaScript
 import fs from "fs";
@@ -252,69 +235,45 @@ with open("page.png", "wb") as f:
     f.write(response.content)
 ```
 
-</CodeGroup>
+</RequestExample>
 
-## Response examples
+<ResponseExample>
 
-<Tabs>
-  <Tab title="200 image/png">
-    ```text
-    HTTP/1.1 200 OK
-    Content-Type: image/png
+```text 200 image/png
+HTTP/1.1 200 OK
+Content-Type: image/png
 
-    <binary PNG stream>
-    ```
-  </Tab>
-  <Tab title="422 Selector not found">
-    ```json
-    {
-      "error": "Content selector was not found",
-      "code": "CONTENT_SELECTOR_NOT_FOUND"
-    }
-    ```
-  </Tab>
-  <Tab title="402 Insufficient credits">
-    ```json
-    {
-      "error": "Insufficient credits",
-      "code": "INSUFFICIENT_CREDITS",
-      "balance": 0,
-      "requiredCredits": 1
-    }
-    ```
-  </Tab>
-  <Tab title="400 Bad country code">
-    ```json
-    {
-      "error": "countryCode is not supported",
-      "code": "INVALID_COUNTRY_CODE"
-    }
-    ```
-  </Tab>
-  <Tab title="503 Proxy unavailable">
-    ```json
-    {
-      "error": "Dynamic country/region routing is unavailable",
-      "code": "DYNAMIC_PROXY_NOT_CONFIGURED"
-    }
-    ```
-  </Tab>
-</Tabs>
+<binary PNG stream>
+```
 
-## Error reference
+```json 422 Selector not found
+{
+  "error": "Content selector was not found",
+  "code": "CONTENT_SELECTOR_NOT_FOUND"
+}
+```
 
-| Code | Error code | Cause |
-|---|---|---|
-| `400` | `INVALID_COUNTRY_CODE` | The `countryCode` value is not recognised. |
-| `401` | — | `x-api-key` is missing or invalid. |
-| `402` | `INSUFFICIENT_CREDITS` | Account balance too low. Check `balance` and `requiredCredits` in the response body. |
-| `422` | `CONTENT_SELECTOR_NOT_FOUND` | The CSS `selector` did not match any element on the page. |
-| `429` | — | Request rate limit reached. Back off and retry. |
-| `502` | — | Proxy unreachable or the target server returned an error. |
-| `503` | `DYNAMIC_PROXY_NOT_CONFIGURED` | Managed proxy routing is temporarily unavailable. |
-| `504` | — | Navigation or proxy connection timed out. Increase `timeoutMs` or try again. |
-| `500` | — | Unclassified internal error. |
+```json 402 Insufficient credits
+{
+  "error": "Insufficient credits",
+  "code": "INSUFFICIENT_CREDITS",
+  "balance": 0,
+  "requiredCredits": 1
+}
+```
 
-<Note>
-  One credit is consumed after request validation but before the task is enqueued. Request bodies are limited to 1 MiB.
-</Note>
+```json 400 Bad country code
+{
+  "error": "countryCode is not supported",
+  "code": "INVALID_COUNTRY_CODE"
+}
+```
+
+```json 503 Proxy unavailable
+{
+  "error": "Dynamic country/region routing is unavailable",
+  "code": "DYNAMIC_PROXY_NOT_CONFIGURED"
+}
+```
+
+</ResponseExample>

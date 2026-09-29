@@ -1,0 +1,65 @@
+---
+title: "List CDP Sessions"
+sidebarTitle: "List Sessions"
+description: "Retrieve all active CDP sessions associated with your API key, including session IDs, expiry times, and CDP base URLs."
+api: "GET /cdp/sessions"
+playground: "interactive"
+---
+
+List all active CDP sessions associated with your API key.
+
+## Response
+
+<ResponseField name="ok" type="boolean">
+  Whether the request succeeded.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of active session objects.
+
+  <Expandable title="session object fields">
+    <ResponseField name="sessionId" type="string">
+      Unique identifier for the active session.
+    </ResponseField>
+
+    <ResponseField name="expiresAt" type="string">
+      RFC 3339 timestamp when the session will expire.
+    </ResponseField>
+
+    <ResponseField name="cdpBaseUrl" type="string">
+      Fully formed base URL for this session. Pass it directly to `playwright.connectOverCDP()`. It already contains the data token as a query parameter: do not replace or append your API key.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Array of sessions for the current key. |
+| `401` | Missing or invalid `x-api-key`. |
+| `500` | Failed to read sessions or their data tokens. |
+
+<RequestExample>
+
+```bash cURL
+curl -sS "https://api.adscrawl.net/cdp/sessions" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "ok": true,
+  "data": [
+    {
+      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+      "expiresAt": "2026-04-21T10:30:00.000Z",
+      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+    }
+  ]
+}
+```
+
+</ResponseExample>

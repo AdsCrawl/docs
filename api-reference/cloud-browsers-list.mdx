@@ -1,38 +1,22 @@
 ---
-title: "List Cloud Browser Profiles and Quotas — GET /cloud-browsers"
+title: "List Cloud Browser Profiles"
 sidebarTitle: "List Browsers"
 description: "List all saved cloud browser profiles for your account along with pagination metadata and your plan's saved-profile and concurrent-running allowances."
+api: "GET /cloud-browsers"
+playground: "interactive"
 ---
 
-Retrieve every cloud browser profile saved under your account together with account-wide quota fields that tell you how many profiles you can save (`limit`), how many can run at the same time (`runningLimit`), and how many are currently occupying a running slot (`runningCount`). Use this endpoint to inspect your remaining capacity before starting a new browser or to poll the live status of all profiles in a single request.
-
-## Authentication
-
-Include one of the following on every request:
-
-| Method | Header |
-|---|---|
-| API key | `x-api-key: <API_KEY>` |
-| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
-| Dashboard session cookie | _(sent automatically by the browser)_ |
-
-Resources are scoped to the authenticated user. All three methods give access to list, create, launch, detail, start, and stop.
-
-## Query Parameters
+Retrieve every cloud browser profile saved under your account together with account-wide quota fields that tell you how many profiles you can save (`limit`), how many can run at the same time (`runningLimit`), and how many are currently occupying a running slot (`runningCount`). This endpoint accepts `x-api-key`, a session JWT in `Authorization: Bearer <token>`, or a dashboard session cookie.
 
 <ParamField query="page" type="integer" default="1">
-  Page number to retrieve. Defaults to `1`; invalid or non-positive values fall back to `1`. Capped at `10000`.
+  Page number to retrieve. Defaults to `1`; invalid or non-positive values fall back to `1`. Maximum is `10000`.
 </ParamField>
 
 <ParamField query="pageSize" type="integer" default="10">
-  Number of profiles to return per page. Defaults to `10`; invalid or non-positive values fall back to `10`. Maximum is `10`.
+  Number of profiles per page. Defaults to `10`; invalid or non-positive values fall back to `10`. Maximum is `10`.
 </ParamField>
 
-## Responses
-
-### 200 — Success
-
-Returns the paginated list of profiles alongside quota fields reflecting your account's current state.
+## Response
 
 <ResponseField name="ok" type="boolean">
   Always `true` on success.
@@ -46,7 +30,7 @@ Returns the paginated list of profiles alongside quota fields reflecting your ac
       Persistent profile identifier. Use this value in path parameters for start, stop, detail, and delete.
     </ResponseField>
     <ResponseField name="source" type="string">
-      Origin of the profile — `manual` for profiles created with `POST /cloud-browsers`, or `launch` for profiles created with `POST /cloud-browsers/launch`.
+      Origin of the profile: `manual` for profiles created with `POST /cloud-browsers`, or `launch` for profiles created with `POST /cloud-browsers/launch`.
     </ResponseField>
     <ResponseField name="deleteOnStop" type="boolean">
       Always `false` in current API responses. Profiles are retained after stop unless explicitly deleted.
@@ -113,7 +97,7 @@ Returns the paginated list of profiles alongside quota fields reflecting your ac
 </ResponseField>
 
 <ResponseField name="limit" type="integer">
-  Your plan's saved-profile allowance — the maximum number of profiles you can save at once. Creating a new profile when you have reached this limit returns `409`.
+  Your plan's saved-profile allowance: the maximum number of profiles you can save at once. Creating a new profile when you have reached this limit returns `409`.
 </ResponseField>
 
 <ResponseField name="runningLimit" type="integer">
@@ -124,23 +108,19 @@ Returns the paginated list of profiles alongside quota fields reflecting your ac
   Total number of sessions currently in `starting`, `running`, or `stopping` state across all your profiles, pages, and API keys. This count excludes temporary Remote CDP sessions created via `/cdp/sessions`.
 </ResponseField>
 
+| Code | Meaning |
+| --- | --- |
+| `200` | Success |
+| `401` | Unauthenticated |
+| `403` | Session limit reached (`SESSIONS_PER_API_KEY_LIMIT_REACHED`) |
+| `500` | Internal error |
+| `503` | Runtime unavailable |
+
 <Note>
-  `runningCount` includes sessions in **all three active states** — `starting`, `running`, and `stopping` — because all three reserve a running slot. A session does not release its slot until it reaches `stopped`.
+  `runningCount` includes sessions in **all three active states** (`starting`, `running`, and `stopping`) because all three reserve a running slot. A session does not release its slot until it reaches `stopped`.
 </Note>
 
-### 401 — Unauthenticated
-
-Authentication is missing, invalid, or expired.
-
-### 503 — Runtime Unavailable
-
-`CDP_WORKER_UNAVAILABLE`, or the cloud browser runtime is temporarily unreachable. A transient loss of contact does not confirm that sessions are stopped; their quota slots remain reserved.
-
-### 500 — Internal Error
-
-An internal service failure. Retry with exponential backoff.
-
-## List Request Example
+<RequestExample>
 
 ```bash cURL
 curl --fail-with-body --silent --show-error --max-time 65 \
@@ -148,7 +128,9 @@ curl --fail-with-body --silent --show-error --max-time 65 \
   -H 'x-api-key: <api-key>'
 ```
 
-## List Response Example
+</RequestExample>
+
+<ResponseExample>
 
 ```json 200 OK
 {
@@ -187,129 +169,4 @@ curl --fail-with-body --silent --show-error --max-time 65 \
 }
 ```
 
----
-
-## GET /cloud-browsers/:id — Get Profile Detail
-
-Fetch the full state of a single saved cloud browser profile by its persistent `id`. Use this endpoint to check the current `runtime.status` of a specific profile, retrieve its `connectUrl` when running, or poll during startup and shutdown. The response shape is the same profile object returned in the `data` array of the list endpoint, but returned directly without a wrapper.
-
-### Path Parameter
-
-<ParamField path="id" type="string (UUID)" required>
-  The persistent profile identifier returned by `POST /cloud-browsers` (create), `POST /cloud-browsers/launch`, or `GET /cloud-browsers` (list). This is distinct from the runtime `sessionId`.
-</ParamField>
-
-### Detail Responses
-
-#### 200 — Success
-
-Returns the profile object directly (no `ok` or `data` wrapper).
-
-<ResponseField name="id" type="string (UUID)">
-  Persistent profile identifier.
-</ResponseField>
-
-<ResponseField name="remark" type="string | null">
-  Optional label saved at creation. `null` if not set.
-</ResponseField>
-
-<ResponseField name="browserSettings" type="object">
-  Saved configuration (viewport, locale, timezoneId, proxy display info, cookies, fingerprint). Proxy credentials are stripped from responses.
-</ResponseField>
-
-<ResponseField name="proxyDisplayIp" type="string | null">
-  Last observed proxy exit IP address, or `null` if not yet set.
-</ResponseField>
-
-<ResponseField name="proxyDisplayRegion" type="string | null">
-  Last observed proxy region, or `null` if not yet set.
-</ResponseField>
-
-<ResponseField name="lastOpenedAt" type="string (RFC3339) | null">
-  Timestamp of the most recent successful start, or `null` if the profile has never run.
-</ResponseField>
-
-<ResponseField name="updatedAt" type="string (RFC3339)">
-  Timestamp of the most recent profile update.
-</ResponseField>
-
-<ResponseField name="runtime" type="object">
-  Current runtime status for this profile. See the runtime fields described in the list response above.
-</ResponseField>
-
-#### 401 — Unauthenticated
-
-Authentication is missing, invalid, or expired.
-
-#### 404 — Not Found
-
-The profile does not exist or belongs to another user.
-
-#### 503 — Runtime Unavailable
-
-`CDP_WORKER_UNAVAILABLE`, or the cloud browser runtime is temporarily unreachable. A transient loss of contact does not confirm that the session is stopped; its quota slot remains reserved.
-
-#### 500 — Internal Error
-
-An internal service failure.
-
-### Detail Request Example
-
-```bash cURL
-curl --fail-with-body --silent --show-error --max-time 65 \
-  -X GET 'https://api.adscrawl.net/cloud-browsers/<browser-id>' \
-  -H 'x-api-key: <api-key>'
-```
-
-### Detail Response Examples
-
-<CodeGroup>
-```json 200 Stopped
-{
-  "id": "<browser-id>",
-  "source": "manual",
-  "deleteOnStop": false,
-  "remark": "work profile",
-  "browserSettings": {
-    "viewport": {
-      "width": 1440,
-      "height": 900
-    }
-  },
-  "proxyDisplayIp": null,
-  "proxyDisplayRegion": null,
-  "lastOpenedAt": null,
-  "updatedAt": "2026-09-07T08:00:00.000Z",
-  "runtime": {
-    "runtimeKind": "neko",
-    "status": "stopped"
-  }
-}
-```
-
-```json 200 Running
-{
-  "id": "<browser-id>",
-  "source": "manual",
-  "deleteOnStop": false,
-  "remark": "work profile",
-  "browserSettings": {
-    "viewport": {
-      "width": 1440,
-      "height": 900
-    }
-  },
-  "proxyDisplayIp": "203.0.113.42",
-  "proxyDisplayRegion": "US",
-  "lastOpenedAt": "2026-09-07T08:30:00.000Z",
-  "updatedAt": "2026-09-07T08:00:00.000Z",
-  "runtime": {
-    "runtimeKind": "neko",
-    "status": "running",
-    "sessionId": "<session-id>",
-    "expiresAt": "2026-09-07T09:30:00.000Z",
-    "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
-  }
-}
-```
-</CodeGroup>
+</ResponseExample>

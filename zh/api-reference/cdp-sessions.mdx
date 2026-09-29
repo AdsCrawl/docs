@@ -1,28 +1,12 @@
 ---
-title: "CDP Session API — 创建、列出、连接与删除"
-sidebarTitle: "CDP Sessions"
-description: "创建、列出和删除专用 Chromium CDP 会话，然后通过 Playwright、Puppeteer 或原始 CDP WebSocket 使用住宅代理进行连接。"
+title: "创建 CDP 会话"
+sidebarTitle: "创建会话"
+description: "启动一个专用的 Chromium 实例并返回一个带有嵌入式数据令牌的 CDP 基础 URL，用于经过身份验证的浏览器控制。"
+api: "POST /cdp/sessions"
+playground: "interactive"
 ---
-
-这些端点让你在云端 provision 专用的 Chromium 实例，并通过 Chrome DevTools Protocol（CDP）进行控制。使用你的 `x-api-key` 来创建、列出和删除会话。一个独立的数据令牌内嵌在每个 `cdpBaseUrl` 中，用于认证发现端点和 CDP WebSocket，确保你的主 API 密钥永远不会暴露在浏览器代码中。
-
----
-
-## POST /cdp/sessions
 
 创建一个新的专用 CDP 会话。服务器会启动一个 Chromium 实例，应用你的 `browserSettings`，然后返回一个 `cdpBaseUrl`，你可以直接将其传递给 `playwright.connectOverCDP()` 或用于手动 CDP 发现。
-
-### 请求头
-
-<ParamField header="x-api-key" type="string" required>
-  你在 [dashboard](https://app.adscrawl.net/dashboard/) 中的完整 API 密钥。
-</ParamField>
-
-<ParamField header="content-type" type="string" required>
-  必须为 `application/json`。
-</ParamField>
-
-### 请求体
 
 <ParamField body="idleTimeoutMs" type="number">
   会话在空闲多长时间（毫秒）后被终止。高于服务器上限的值将被静默截断。
@@ -61,7 +45,7 @@ description: "创建、列出和删除专用 Chromium CDP 会话，然后通过 
         </ParamField>
 
         <ParamField body="protocol" type="string">
-          代理协议（分开填写形式）—— `http` 或 `socks5`。
+          代理协议（分开填写形式）：`http` 或 `socks5`。
         </ParamField>
 
         <ParamField body="host" type="string">
@@ -69,7 +53,7 @@ description: "创建、列出和删除专用 Chromium CDP 会话，然后通过 
         </ParamField>
 
         <ParamField body="port" type="number">
-          代理端口（分开填写形式，1–65535）。
+          代理端口（分开填写形式，1 到 65535）。
         </ParamField>
 
         <ParamField body="username" type="string">
@@ -192,7 +176,7 @@ description: "创建、列出和删除专用 Chromium CDP 会话，然后通过 
   </Expandable>
 </ParamField>
 
-### 响应
+## 响应
 
 <ResponseField name="sessionId" type="string">
   活跃会话的唯一标识符。用于所有后续的列出、删除和 CDP 请求。
@@ -203,16 +187,25 @@ description: "创建、列出和删除专用 Chromium CDP 会话，然后通过 
 </ResponseField>
 
 <ResponseField name="cdpBaseUrl" type="string">
-  此会话的完整 base URL。直接传递给 `playwright.connectOverCDP()`。它已经包含作为查询参数的数据令牌——不要替换或追加你的 API 密钥。
+  此会话的完整 base URL。直接传递给 `playwright.connectOverCDP()`。它已经包含作为查询参数的数据令牌：不要替换或追加你的 API 密钥。
 </ResponseField>
 
 <Note>
   `cdpBaseUrl` 携带一个内嵌的数据令牌，用于授权 CDP 访问。切勿将该令牌替换为你的 `x-api-key`。妥善存储它，并像对待凭据一样对待它。
 </Note>
 
-### 请求示例
+| Status | 含义 |
+| --- | --- |
+| `201` | 会话创建成功。 |
+| `400` | 托管区域、自定义代理或随机 User-Agent 参数无效。 |
+| `401` | `x-api-key` 缺失或无效。 |
+| `429` | API 密钥已达到并发 CDP 会话限制。 |
+| `502` | 浏览器后端拒绝了请求体、返回了过大的结果，或无法启动浏览器。 |
+| `503` | 总容量已超出，或浏览器后端不可用。 |
+| `504` | 会话启动或队列超时。 |
+| `500` | 未分类的内部错误。 |
 
-<CodeGroup>
+<RequestExample>
 
 ```bash cURL
 curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
@@ -243,11 +236,9 @@ curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
 }
 ```
 
-</CodeGroup>
+</RequestExample>
 
-### 响应示例
-
-<CodeGroup>
+<ResponseExample>
 
 ```json 201 Created
 {
@@ -263,203 +254,4 @@ curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
 }
 ```
 
-</CodeGroup>
-
-| Status | 含义 |
-| --- | --- |
-| `201` | 会话创建成功。 |
-| `400` | 托管区域、自定义代理或随机 User-Agent 参数无效。 |
-| `401` | `x-api-key` 缺失或无效。 |
-| `429` | API 密钥已达到并发 CDP 会话限制。 |
-| `502` | 浏览器后端拒绝了请求体、返回了过大的结果，或无法启动浏览器。 |
-| `503` | 总容量已超出，或浏览器后端不可用。 |
-| `504` | 会话启动或队列超时。 |
-| `500` | 未分类的内部错误。 |
-
----
-
-## GET /cdp/sessions
-
-列出与你的 API 密钥关联的所有活跃 CDP 会话。
-
-### 请求头
-
-<ParamField header="x-api-key" type="string" required>
-  你在 [dashboard](https://app.adscrawl.net/dashboard/) 中的完整 API 密钥。
-</ParamField>
-
-### 请求示例
-
-```bash cURL
-curl -sS "https://api.adscrawl.net/cdp/sessions" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-### 响应示例
-
-```json 200 OK
-{
-  "ok": true,
-  "data": [
-    {
-      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
-      "expiresAt": "2026-04-21T10:30:00.000Z",
-      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
-    }
-  ]
-}
-```
-
-| Status | 含义 |
-| --- | --- |
-| `200` | 当前密钥的会话数组。 |
-| `401` | `x-api-key` 缺失或无效。 |
-| `500` | 无法读取会话或其数据令牌。 |
-
----
-
-## DELETE /cdp/sessions/:sessionId
-
-立即终止 CDP 会话并释放其容量。
-
-### 请求头
-
-<ParamField header="x-api-key" type="string" required>
-  你在 [dashboard](https://app.adscrawl.net/dashboard/) 中的完整 API 密钥。
-</ParamField>
-
-### 路径参数
-
-<ParamField path="sessionId" type="string" required>
-  要终止的会话 ID，由 `POST /cdp/sessions` 或 `GET /cdp/sessions` 返回。
-</ParamField>
-
-### 请求示例
-
-```bash cURL
-curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-### 响应示例
-
-<CodeGroup>
-
-```json 200 Deleted
-{
-  "ok": true
-}
-```
-
-```json 404 Not Found
-{
-  "error": "CDP session not found"
-}
-```
-
-</CodeGroup>
-
-| Status | 含义 |
-| --- | --- |
-| `200` | 会话删除成功。 |
-| `401` | `x-api-key` 缺失或无效。 |
-| `403` | 该会话不属于当前 API 密钥。 |
-| `404` | 会话 ID 未找到。 |
-| `409` | 会话已在停止过程中。 |
-| `410` | 会话已过期。 |
-| `503` | 分配的浏览器后端不可用。 |
-
-<Tip>
-  当自动化完成时，请务必删除会话。未使用的会话会一直占用你的并发限制，直到过期或被显式删除。
-</Tip>
-
----
-
-## GET /cdp/sessions/:sessionId/json/version
-
-检索会话的 Chrome DevTools Protocol 发现 JSON。响应包含一个 `webSocketDebuggerUrl`，已预重写为公共的、会话范围的 CDP WebSocket 路径——直接使用它，无需手动构造 URL。
-
-### 路径参数
-
-<ParamField path="sessionId" type="string" required>
-  由 `POST /cdp/sessions` 或 `GET /cdp/sessions` 返回的会话 ID。
-</ParamField>
-
-### 查询参数
-
-<ParamField query="token" type="string" required>
-  创建会话时返回的 `cdpBaseUrl` 中已内嵌的数据令牌。请勿在此处替换为你的 `x-api-key`。
-</ParamField>
-
-### 请求示例
-
-```bash cURL
-curl -sS "https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN"
-```
-
-### 响应示例
-
-```json 200 OK
-{
-  "Browser": "Chrome/136.0.0.0",
-  "Protocol-Version": "1.3",
-  "User-Agent": "Mozilla/5.0 ...",
-  "V8-Version": "13.6.233.8",
-  "WebKit-Version": "537.36 (@revision)",
-  "webSocketDebuggerUrl": "wss://api.adscrawl.net/cdp/sessions/SESSION_ID/devtools/browser/BROWSER_ID?token=<data-token>"
-}
-```
-
-| Status | 含义 |
-| --- | --- |
-| `200` | Chrome 发现 JSON，包含已重写的 `webSocketDebuggerUrl`。 |
-| `401` | 数据令牌缺失或无效。 |
-| `404` / `409` / `410` | 会话缺失、正在停止或已过期。 |
-| `502` | 无法从云端后端获取上游 CDP 发现。 |
-| `503` | 会话后端不可用。 |
-
----
-
-## WS /cdp/sessions/:sessionId/devtools/browser/:browserId
-
-升级到浏览器 CDP 端点的 WebSocket 连接。CDP 消息在你的客户端和云端运行的 Chromium 实例之间双向代理。直接使用发现端点返回的 `webSocketDebuggerUrl`，而非手动构造此 URL。
-
-### 路径参数
-
-<ParamField path="sessionId" type="string" required>
-  当前 CDP 会话 ID。
-</ParamField>
-
-<ParamField path="browserId" type="string" required>
-  发现端点的浏览器目标 ID。建议直接复制完整的 `webSocketDebuggerUrl`，而非自己组装此路径。
-</ParamField>
-
-### 查询参数
-
-<ParamField query="token" type="string" required>
-  用于发现的同一个数据令牌——内嵌在 `cdpBaseUrl` 中，也在发现端点返回的 `webSocketDebuggerUrl` 中。
-</ParamField>
-
-### JavaScript 示例
-
-```javascript JavaScript
-// Step 1: fetch the discovery document
-const discovery = await fetch(
-  "https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN"
-).then((response) => response.json());
-
-// Step 2: open a WebSocket using the pre-built URL
-const socket = new WebSocket(discovery.webSocketDebuggerUrl);
-
-socket.addEventListener("open", () => {
-  console.log("CDP WebSocket connected");
-});
-```
-
-| Status | 含义 |
-| --- | --- |
-| `101` | WebSocket 升级成功；CDP 消息现在双向代理。 |
-| `401` | 数据令牌缺失或无效。 |
-| `404` / `409` / `410` | 会话缺失、正在停止或已过期。 |
-| `502` | 云端后端 CDP 连接在 101 升级前失败。 |
-| `503` | 会话后端不可用。 |
+</ResponseExample>

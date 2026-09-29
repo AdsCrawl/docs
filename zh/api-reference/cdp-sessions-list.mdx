@@ -1,0 +1,65 @@
+---
+title: "列出 CDP 会话"
+sidebarTitle: "列出会话"
+description: "获取与你的 API 密钥关联的所有活跃 CDP 会话列表，包括会话 ID、过期时间和 CDP 基础 URL。"
+api: "GET /cdp/sessions"
+playground: "interactive"
+---
+
+列出与你的 API 密钥关联的所有活跃 CDP 会话。
+
+## Response
+
+<ResponseField name="ok" type="boolean">
+  请求是否成功。
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  活跃会话对象数组。
+
+  <Expandable title="会话对象字段">
+    <ResponseField name="sessionId" type="string">
+      活跃会话的唯一标识符。
+    </ResponseField>
+
+    <ResponseField name="expiresAt" type="string">
+      会话将过期的 RFC 3339 时间戳。
+    </ResponseField>
+
+    <ResponseField name="cdpBaseUrl" type="string">
+      此会话的完整 base URL。直接传递给 `playwright.connectOverCDP()`。它已经包含作为查询参数的数据令牌，不要替换或追加你的 API 密钥。
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+| Status | 含义 |
+| --- | --- |
+| `200` | 当前密钥的会话数组。 |
+| `401` | `x-api-key` 缺失或无效。 |
+| `500` | 无法读取会话或其数据令牌。 |
+
+<RequestExample>
+
+```bash cURL
+curl -sS "https://api.adscrawl.net/cdp/sessions" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "ok": true,
+  "data": [
+    {
+      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+      "expiresAt": "2026-04-21T10:30:00.000Z",
+      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+    }
+  ]
+}
+```
+
+</ResponseExample>

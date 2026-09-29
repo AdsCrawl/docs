@@ -1,82 +1,82 @@
 ---
-title: "API Schema Reference — Shared Types for All Endpoints"
+title: "API Schema 参考：所有端点共享的类型"
 sidebarTitle: "Schemas"
-description: "Reusable schema definitions for browserSettings, proxy, fingerprint, cookies, waitFor, field, and actions across all AdsCrawl endpoints."
+description: "AdsCrawl 所有端点共享的可复用 Schema 参考定义，涵盖 browserSettings、proxy、fingerprint、cookies、waitFor、field 与 actions。在开始构建之前掌握这些共享类型，可帮助你一致且正确地配置浏览器任务、CDP 会话与云浏览器环境。"
 ---
 
-These schemas appear across multiple AdsCrawl endpoints. Instead of repeating field definitions in every endpoint reference, this page documents each schema once. Understanding `browserSettings`, `fingerprint`, `proxy`, `cookies`, `waitFor`, `field`, and `actions` before you start building lets you configure browser tasks, CDP sessions, and cloud browsers consistently and correctly.
+这些 schema 出现在多个 AdsCrawl 端点中。本页面将每个 schema 集中定义一次，避免在每个端点参考中重复。在开始构建之前理解 `browserSettings`、`fingerprint`、`proxy`、`cookies`、`waitFor`、`field` 和 `actions`，可以让你一致且正确地配置浏览器任务、CDP 会话和云浏览器。
 
 ---
 
 ## `browserSettings`
 
-Browser configuration shared across CDP sessions and cloud browsers. Omitted regions use a random trusted proxy; explicitly pass `GLOBAL`, a region code, or a custom `proxy` object when you need deterministic routing.
+在 CDP 会话和云浏览器之间共享的浏览器配置。省略地区时会使用随机可信代理；如果需要确定性路由，请显式传入 `GLOBAL`、地区代码或自定义 `proxy` 对象。
 
 <ParamField body="viewport" type="object">
-  Browser window size.
+  浏览器窗口大小。
 
-  <Expandable title="viewport fields">
+  <Expandable title="viewport 字段">
     <ParamField body="width" type="number" required>
-      Viewport width in pixels.
+      视口宽度，单位为像素。
     </ParamField>
 
     <ParamField body="height" type="number" required>
-      Viewport height in pixels.
+      视口高度，单位为像素。
     </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="locale" type="string">
-  Browser locale, such as `"en-US"`.
+  浏览器语言环境，例如 `"en-US"`。
 </ParamField>
 
 <ParamField body="timezoneId" type="string">
-  IANA timezone identifier, such as `"Asia/Shanghai"`.
+  IANA 时区标识符，例如 `"Asia/Shanghai"`。
 </ParamField>
 
 <ParamField body="geolocation" type="object">
-  Optional geolocation coordinates to inject into the browser.
+  注入浏览器的可选地理位置坐标。
 
-  <Expandable title="geolocation fields">
+  <Expandable title="geolocation 字段">
     <ParamField body="latitude" type="number" required>
-      Latitude in decimal degrees.
+      纬度，以十进制度数表示。
     </ParamField>
 
     <ParamField body="longitude" type="number" required>
-      Longitude in decimal degrees.
+      经度，以十进制度数表示。
     </ParamField>
   </Expandable>
 </ParamField>
 
 <ParamField body="proxy" type="object">
-  Custom proxy configuration. Cannot be combined with `countryCode`. See the [`proxy` schema](#proxy) below.
+  自定义代理配置。不能与 `countryCode` 同时使用。请参阅下方的 [`proxy` schema](#proxy)。
 </ParamField>
 
 <ParamField body="countryCode" type="string">
-  Managed proxy region. Use `"GLOBAL"` to select a popular region automatically, or a two-letter country code (e.g. `"FR"`) to prefer a trusted proxy in that region with dynamic fallback. Cannot be combined with `proxy`.
+  托管代理地区。使用 `"GLOBAL"` 可自动选择热门地区，或使用两位国家代码（例如 `"FR"`）以优先选择该地区的可信代理并支持动态回退。不能与 `proxy` 同时使用。
 </ParamField>
 
 <ParamField body="userAgent" type="string">
-  Overrides the default User-Agent string.
+  覆盖默认的 User-Agent 字符串。
 </ParamField>
 
 <ParamField body="userAgentMode" type='"custom" | "random"'>
-  Set to `"random"` to let the server select a User-Agent from its library. Requests without a User-Agent default to `"random"`.
+  设置为 `"random"` 可让服务器从其库中选择 User-Agent。未提供 User-Agent 的请求默认使用 `"random"`。
 </ParamField>
 
 <ParamField body="userAgentOs" type='"windows" | "macos"'>
-  Operating system used by random User-Agent mode. Defaults to `"windows"`.
+  随机 User-Agent 模式使用的操作系统。默认为 `"windows"`。
 </ParamField>
 
 <ParamField body="fingerprint" type="object">
-  Browser fingerprint settings. When omitted in CDP contexts, `canvas` and `webGlImage` default to `"real"` while other signals use a coherent randomized profile. See the [`fingerprint` schema](#fingerprint) below.
+  浏览器指纹设置。在 CDP 上下文中省略时，`canvas` 和 `webGlImage` 默认为 `"real"`，其他信号使用一致的随机化配置。请参阅下方的 [`fingerprint` schema](#fingerprint)。
 </ParamField>
 
 <ParamField body="cookies" type="cookies[]">
-  Cookies injected into the browser context before the session starts. See the [`cookies[]` schema](#cookies) below.
+  在会话启动前注入浏览器上下文的 Cookie。请参阅下方的 [`cookies[]` schema](#cookies)。
 </ParamField>
 
-### Example
+### 示例
 
 ```json
 {
@@ -97,27 +97,27 @@ Browser configuration shared across CDP sessions and cloud browsers. Omitted reg
 
 ## `fingerprint`
 
-Controls browser fingerprint signals to reduce detectability. Every field is optional. Browser-task omissions default to `"random"`. CDP `browserSettings` omissions set `canvas` and `webGlImage` to `"real"` and generate other signals from a coherent randomized profile.
+控制浏览器指纹信号以降低被检测的风险。每个字段都是可选的。浏览器任务中省略的字段默认使用 `"random"`。CDP `browserSettings` 中省略时，`canvas` 和 `webGlImage` 设置为 `"real"`，其他信号从一致的随机化配置生成。
 
 <Warning>
-  When `webGl` is `"real"`, you cannot set `webGpu` or `hardware` to `"random"`. These three signals must be consistent with each other.
+  当 `webGl` 为 `"real"` 时，不能将 `webGpu` 或 `hardware` 设置为 `"random"`。这三个信号必须保持一致。
 </Warning>
 
-| Field | Accepted Values | Notes |
+| 字段 | 可接受的值 | 说明 |
 | --- | --- | --- |
-| `webRtc` | `"forward"` \| `"real"` \| `"disabled"` | `"forward"` uses the proxy exit address. The legacy value `"random"` is accepted as an alias for `"forward"`. |
-| `webGl` | `"random"` \| `"real"` | Spoofs or preserves WebGL vendor and renderer metadata. |
-| `webGpu` | `"random"` \| `"real"` \| `"disabled"` | In `"random"` mode, follows the WebGL GPU configuration. |
-| `webGlImage` | `"random"` \| `"real"` | Controls WebGL image rendering noise. |
-| `canvas` | `"random"` \| `"real"` | Adds or suppresses canvas fingerprint noise. |
-| `audioContext` | `"random"` \| `"real"` | Adds or suppresses audio context fingerprint noise. |
-| `clientRects` | `"random"` \| `"real"` | Adds or suppresses layout measurement noise. |
-| `speechVoices` | `"random"` \| `"real"` | Returns an OS-matched or real speech voice list. |
-| `fonts` | `"random"` \| `"real"` | Returns an OS-matched or real installed font list. |
-| `hardware` | `"random"` \| `"real"` | Generates CPU thread count and device memory as a matched pair. |
-| `doNotTrack` | `"random"` \| `"enabled"` \| `"disabled"` | Controls the DNT request header preference. |
+| `webRtc` | `"forward" \| "real" \| "disabled"` | `"forward"` 使用代理出口地址。旧值 `"random"` 被接受为 `"forward"` 的别名。 |
+| `webGl` | `"random" \| "real"` | 伪造或保留 WebGL 供应商和渲染器元数据。 |
+| `webGpu` | `"random" \| "real" \| "disabled"` | `"random"` 模式下，遵循 WebGL GPU 配置。 |
+| `webGlImage` | `"random" \| "real"` | 控制 WebGL 图像渲染噪声。 |
+| `canvas` | `"random" \| "real"` | 添加或抑制 canvas 指纹噪声。 |
+| `audioContext` | `"random" \| "real"` | 添加或抑制 audio context 指纹噪声。 |
+| `clientRects` | `"random" \| "real"` | 添加或抑制布局测量噪声。 |
+| `speechVoices` | `"random" \| "real"` | 返回与操作系统匹配或真实的语音列表。 |
+| `fonts` | `"random" \| "real"` | 返回与操作系统匹配或真实的已安装字体列表。 |
+| `hardware` | `"random" \| "real"` | 将 CPU 线程数和设备内存作为匹配对生成。 |
+| `doNotTrack` | `"random" \| "enabled" \| "disabled"` | 控制 DNT 请求头偏好。 |
 
-### Example
+### 示例
 
 ```json
 {
@@ -136,37 +136,37 @@ Controls browser fingerprint signals to reduce detectability. Every field is opt
 
 ## `proxy`
 
-Custom proxy configuration for routing browser traffic. Provide either the `server` URL form **or** the split form (`protocol` + `host` + `port`) — never both.
+用于路由浏览器流量的自定义代理配置。提供 `server` URL 形式或拆分形式（`protocol` + `host` + `port`），切勿同时使用两者。
 
 <Warning>
-  Supply `username` and `password` together. Omit both for an unauthenticated proxy. Never embed credentials in the `server` URL.
+  `username` 和 `password` 必须同时提供。对于无需认证的代理，请同时省略两者。切勿将凭据嵌入 `server` URL 中。
 </Warning>
 
 <ParamField body="server" type="string">
-  Full proxy URL, e.g. `"http://host:port"` or `"socks5://host:port"`. Must include an explicit port. Cannot be combined with `host`. Do not embed credentials, a path, a query string, or a fragment.
+  完整的代理 URL，例如 `"http://host:port"` 或 `"socks5://host:port"`。必须包含显式端口。不能与 `host` 同时使用。请勿嵌入凭据、路径、查询字符串或片段。
 </ParamField>
 
 <ParamField body="protocol" type='"http" | "socks5"'>
-  Proxy protocol for the split form.
+  拆分形式的代理协议。
 </ParamField>
 
 <ParamField body="host" type="string">
-  Proxy hostname for the split form. Cannot be combined with `server`.
+  拆分形式的代理主机名。不能与 `server` 同时使用。
 </ParamField>
 
 <ParamField body="port" type="number | string">
-  Proxy port for the split form. Accepts an integer or numeric string from 1 to 65535.
+  拆分形式的代理端口。接受从 1 到 65535 的整数或数字字符串。
 </ParamField>
 
 <ParamField body="username" type="string">
-  Proxy authentication username. Must be supplied together with `password`.
+  代理认证用户名。必须与 `password` 同时提供。
 </ParamField>
 
 <ParamField body="password" type="string">
-  Proxy authentication password. Must be supplied together with `username`.
+  代理认证密码。必须与 `username` 同时提供。
 </ParamField>
 
-### Examples
+### 示例
 
 <CodeGroup>
 
@@ -200,49 +200,49 @@ Custom proxy configuration for routing browser traffic. Provide either the `serv
 
 ## `cookies[]`
 
-An array of cookies injected into the browser context before navigation begins. Each entry is an object with the following fields.
+在导航开始前注入浏览器上下文的 Cookie 数组。每个条目都是一个具有以下字段的对象。
 
 <ParamField body="name" type="string" required>
-  Cookie name.
+  Cookie 名称。
 </ParamField>
 
 <ParamField body="value" type="string" required>
-  Cookie value.
+  Cookie 值。
 </ParamField>
 
 <ParamField body="domain" type="string" required>
-  Target domain, e.g. `".example.com"`. Include the leading dot to match subdomains.
+  目标域名，例如 `".example.com"`。包含前导点以匹配子域名。
 </ParamField>
 
 <ParamField body="path" type="string">
-  Cookie path. Defaults to `"/"`.
+  Cookie 路径。默认为 `"/"`。
 </ParamField>
 
 <ParamField body="secure" type="boolean">
-  When `true`, the cookie is sent only over HTTPS.
+  当为 `true` 时，Cookie 仅通过 HTTPS 发送。
 </ParamField>
 
 <ParamField body="httpOnly" type="boolean">
-  When `true`, the cookie is inaccessible to client-side JavaScript.
+  当为 `true` 时，Cookie 对客户端 JavaScript 不可访问。
 </ParamField>
 
 <ParamField body="hostOnly" type="boolean">
-  When `true`, the cookie is bound to the exact host and not subdomains.
+  当为 `true` 时，Cookie 绑定到确切主机而非子域名。
 </ParamField>
 
 <ParamField body="sameSite" type="string">
-  SameSite attribute. Accepted values: `"Strict"`, `"Lax"`, `"None"`.
+  SameSite 属性。可接受的值：`"Strict"`、`"Lax"`、`"None"`。
 </ParamField>
 
 <ParamField body="session" type="boolean">
-  When `true`, the cookie expires with the session and has no persistent expiry.
+  当为 `true` 时，Cookie 随会话过期，没有持久性过期时间。
 </ParamField>
 
 <ParamField body="expirationDate / expires / expiry" type="number">
-  Persistent expiry as a Unix timestamp in seconds. All three field names are accepted interchangeably.
+  以 Unix 时间戳（秒）表示的持久性过期时间。这三个字段名称可以互换使用。
 </ParamField>
 
-### Example
+### 示例
 
 ```json
 [
@@ -263,21 +263,21 @@ An array of cookies injected into the browser context before navigation begins. 
 
 ## `waitFor`
 
-Instructs the browser to pause after navigation or after executing `actions` until a specific element or text becomes visible on the page. You can combine `selector` and `text` in the same object.
+指示浏览器在导航后或执行 `actions` 后暂停，直到页面上出现特定元素或文本。你可以在同一个对象中组合使用 `selector` 和 `text`。
 
 <ParamField body="selector" type="string">
-  CSS selector. The browser waits for the first matching element to become visible.
+  CSS 选择器。浏览器等待第一个匹配的元素变为可见。
 </ParamField>
 
 <ParamField body="text" type="string">
-  Text content. The browser waits for the first element containing this text to become visible.
+  文本内容。浏览器等待第一个包含此文本的元素变为可见。
 </ParamField>
 
 <ParamField body="timeoutMs" type="number">
-  Maximum wait time in milliseconds. Defaults to `15000`. Never exceeds the remaining task timeout, regardless of the value you supply.
+  最长等待时间，单位为毫秒。默认为 `15000`。无论提供什么值，都不会超过剩余的任务超时时间。
 </ParamField>
 
-### Example
+### 示例
 
 ```json
 {
@@ -288,51 +288,51 @@ Instructs the browser to pause after navigation or after executing `actions` unt
 
 ---
 
-## `field` (SPA Extract Field Definition)
+## `field`（SPA 提取字段定义）
 
-Defines a single field to extract in a `POST /spa-extract` request. DOM fields read element content; network fields capture data from intercepted JSON responses.
+定义 `POST /spa-extract` 请求中要提取的单个字段。DOM 字段读取元素内容；网络字段从拦截到的 JSON 响应中捕获数据。
 
 <ParamField body="source" type='"dom" | "network"' required>
-  Data source for this field. Use `"dom"` to read from the page's DOM, or `"network"` to capture a matching JSON response from a network request.
+  此字段的数据源。使用 `"dom"` 从页面 DOM 中读取，或使用 `"network"` 从网络请求中捕获匹配的 JSON 响应。
 </ParamField>
 
 <ParamField body="selector" type="string">
-  CSS selector identifying the target element. Required for `source: "dom"` fields.
+  标识目标元素的 CSS 选择器。`source: "dom"` 字段必填。
 </ParamField>
 
 <ParamField body="value" type='"text" | "html" | "attribute"'>
-  DOM read mode. Defaults to `"text"`. Use `"html"` to get the element's inner HTML, or `"attribute"` to read a specific attribute.
+  DOM 读取模式。默认为 `"text"`。使用 `"html"` 获取元素内部 HTML，或使用 `"attribute"` 读取特定属性。
 </ParamField>
 
 <ParamField body="attribute" type="string">
-  The attribute name to read when `value` is `"attribute"`. For example, `"href"` or `"data-id"`.
+  当 `value` 为 `"attribute"` 时要读取的属性名称。例如 `"href"` 或 `"data-id"`。
 </ParamField>
 
 <ParamField body="urlIncludes" type="string">
-  A substring used to match the response URL for `source: "network"` fields. The most recent matching response is used.
+  用于匹配 `source: "network"` 字段响应 URL 的子字符串。使用最近匹配的响应。
 </ParamField>
 
 <ParamField body="path" type="string">
-  JSONPath expression to extract a value from the matched network response body. For example, `"$.data.metrics[0].value"`.
+  从匹配的网络响应体中提取值的 JSONPath 表达式。例如 `"$.data.metrics[0].value"`。
 </ParamField>
 
 <ParamField body="multiple" type="boolean">
-  When `true`, the field returns an array of all matching DOM elements instead of just the first.
+  当为 `true` 时，字段返回所有匹配 DOM 元素的数组，而不仅仅是第一个。
 </ParamField>
 
 <ParamField body="parse" type='"string" | "number" | "integer" | "boolean" | "json"'>
-  Coerces the extracted raw value to the specified type before returning it.
+  在返回之前，将提取的原始值强制转换为指定类型。
 </ParamField>
 
 <ParamField body="regex" type="string">
-  A regular expression applied to the extracted value. When the pattern contains a capture group, group 1 is returned as the field value.
+  应用于提取值的正则表达式。当模式包含捕获组时，组 1 将作为字段值返回。
 </ParamField>
 
 <ParamField body="required" type="boolean">
-  When `true`, a missing or unmatched field causes the endpoint to return `422 SPA_REQUIRED_FIELDS_MISSING` instead of returning `null`.
+  当为 `true` 时，缺失或不匹配的字段会导致端点返回 `422 SPA_REQUIRED_FIELDS_MISSING`，而不是返回 `null`。
 </ParamField>
 
-### Examples
+### 示例
 
 <CodeGroup>
 
@@ -379,102 +379,102 @@ Defines a single field to extract in a `POST /spa-extract` request. DOM fields r
 
 ## `actions[]`
 
-An ordered array of page interactions executed before extraction begins in `POST /spa-extract`. Each element is an object with a `type` field that determines which action runs. Every interactive step is capped at 30 seconds.
+在 `POST /spa-extract` 中提取开始前执行的有序页面交互数组。每个元素都是一个带有 `type` 字段的对象，决定执行哪个操作。每个交互步骤的上限为 30 秒。
 
-<Accordion title="wait — pause execution">
-  Pauses execution for a fixed number of milliseconds.
+<Accordion title="wait — 暂停执行">
+  暂停执行固定毫秒数。
 
   ```json
   { "type": "wait", "milliseconds": 2000 }
   ```
 
   <ParamField body="type" type="string" required>
-    Must be `"wait"`.
+    必须为 `"wait"`。
   </ParamField>
 
   <ParamField body="milliseconds" type="number" required>
-    Duration to pause. Accepted range: `0` to `30000`.
+    暂停时长。可接受范围：`0` 到 `30000`。
   </ParamField>
 </Accordion>
 
-<Accordion title="waitForSelector — wait for an element">
-  Pauses until the first element matching the CSS selector becomes visible.
+<Accordion title="waitForSelector — 等待元素">
+  暂停直到第一个匹配 CSS 选择器的元素变为可见。
 
   ```json
   { "type": "waitForSelector", "selector": "#content", "timeoutMs": 8000 }
   ```
 
   <ParamField body="type" type="string" required>
-    Must be `"waitForSelector"`.
+    必须为 `"waitForSelector"`。
   </ParamField>
 
   <ParamField body="selector" type="string" required>
-    CSS selector to wait for.
+    要等待的 CSS 选择器。
   </ParamField>
 
   <ParamField body="timeoutMs" type="number">
-    Maximum wait in milliseconds. Defaults to the step's 30-second cap when omitted.
+    最长等待时间，单位为毫秒。省略时默认为该步骤的 30 秒上限。
   </ParamField>
 </Accordion>
 
-<Accordion title="click — click an element">
-  Clicks the first element matching the CSS selector.
+<Accordion title="click — 点击元素">
+  点击第一个匹配 CSS 选择器的元素。
 
   ```json
   { "type": "click", "selector": "button.load-more" }
   ```
 
   <ParamField body="type" type="string" required>
-    Must be `"click"`.
+    必须为 `"click"`。
   </ParamField>
 
   <ParamField body="selector" type="string" required>
-    CSS selector of the element to click.
+    要点击元素的 CSS 选择器。
   </ParamField>
 </Accordion>
 
-<Accordion title="fill — fill an input">
-  Clears the target input element and types the given value into it.
+<Accordion title="fill — 填充输入框">
+  清除目标输入元素并输入给定值。
 
   ```json
   { "type": "fill", "selector": "input[name='q']", "value": "browser automation" }
   ```
 
   <ParamField body="type" type="string" required>
-    Must be `"fill"`.
+    必须为 `"fill"`。
   </ParamField>
 
   <ParamField body="selector" type="string" required>
-    CSS selector of the input element to fill.
+    要填充的输入元素的 CSS 选择器。
   </ParamField>
 
   <ParamField body="value" type="string" required>
-    Text to enter into the input.
+    要输入到输入框的文本。
   </ParamField>
 </Accordion>
 
-<Accordion title="press — press a key">
-  Sends a keyboard key press to the first element matching the CSS selector.
+<Accordion title="press — 按键">
+  向第一个匹配 CSS 选择器的元素发送键盘按键。
 
   ```json
   { "type": "press", "selector": "input[name='q']", "key": "Enter" }
   ```
 
   <ParamField body="type" type="string" required>
-    Must be `"press"`.
+    必须为 `"press"`。
   </ParamField>
 
   <ParamField body="selector" type="string" required>
-    CSS selector of the target element.
+    目标元素的 CSS 选择器。
   </ParamField>
 
   <ParamField body="key" type="string" required>
-    Key to press, such as `"Enter"`, `"Tab"`, or `"ArrowDown"`.
+    要按的键，例如 `"Enter"`、`"Tab"` 或 `"ArrowDown"`。
   </ParamField>
 </Accordion>
 
-<Accordion title="scroll — scroll the page or an element">
-  Scrolls an element into view, or scrolls the page by a given pixel offset.
+<Accordion title="scroll — 滚动页面或元素">
+  将元素滚动到视图中，或按给定的像素偏移量滚动页面。
 
   ```json
   { "type": "scroll", "y": 1200 }
@@ -485,23 +485,23 @@ An ordered array of page interactions executed before extraction begins in `POST
   ```
 
   <ParamField body="type" type="string" required>
-    Must be `"scroll"`.
+    必须为 `"scroll"`。
   </ParamField>
 
   <ParamField body="selector" type="string">
-    CSS selector. When provided, the matching element is scrolled into view.
+    CSS 选择器。提供时，匹配的元素将被滚动到视图中。
   </ParamField>
 
   <ParamField body="x" type="number">
-    Horizontal scroll offset in pixels. Defaults to `0`.
+    水平滚动偏移量，单位为像素。默认为 `0`。
   </ParamField>
 
   <ParamField body="y" type="number">
-    Vertical scroll offset in pixels. Defaults to `800` when no `selector` is given.
+    垂直滚动偏移量，单位为像素。未提供 `selector` 时默认为 `800`。
   </ParamField>
 </Accordion>
 
-### Full actions example
+### 完整的 actions 示例
 
 ```json
 [
@@ -518,50 +518,50 @@ An ordered array of page interactions executed before extraction begins in `POST
 
 ## `cloudBrowser.runtime`
 
-The runtime status object returned by cloud browser endpoints. It describes the current lifecycle state of a running or stopped browser session.
+云浏览器端点返回的运行时状态对象。它描述了运行中或已停止的浏览器会话的当前生命周期状态。
 
 <Warning>
-  Never construct `connectUrl` or `cdpBaseUrl` yourself, and never append API keys, cookies, or proxy credentials to these URLs. Always use the exact URLs returned by the API. If a URL is absent from the response, query the current status before proceeding.
+  切勿自行构造 `connectUrl` 或 `cdpBaseUrl`，也不要将 API 密钥、Cookie 或代理凭据附加到这些 URL。始终使用 API 返回的确切 URL。如果响应中缺少 URL，请在继续之前查询当前状态。
 </Warning>
 
 <ResponseField name="runtimeKind" type='"neko" | "worker_cdp"'>
-  The type of runtime backing this browser session. `"neko"` provides an interactive browser and omits `cdpBaseUrl`. `"worker_cdp"` exposes a CDP endpoint and may include `cdpBaseUrl`.
+  支撑此浏览器会话的运行时类型。`"neko"` 提供交互式浏览器并省略 `cdpBaseUrl`。`"worker_cdp"` 暴露 CDP 端点并可能包含 `cdpBaseUrl`。
 </ResponseField>
 
 <ResponseField name="status" type='"starting" | "running" | "stopping" | "stopped"' required>
-  The current lifecycle status of the session.
+  会话的当前生命周期状态。
 
-  <Expandable title="Status values">
-    | Value | Meaning |
+  <Expandable title="状态值">
+    | 值 | 含义 |
     | --- | --- |
-    | `starting` | Session is being provisioned. Running quota is already reserved. |
-    | `running` | Session is active. `connectUrl` may be present. |
-    | `stopping` | A stop was requested but is not yet confirmed. Running quota is still reserved. |
-    | `stopped` | Session has ended. Running quota is released. |
+    | `starting` | 会话正在配置中。运行配额已预留。 |
+    | `running` | 会话处于活动状态。`connectUrl` 可能存在。 |
+    | `stopping` | 已请求停止但尚未确认。运行配额仍被预留。 |
+    | `stopped` | 会话已结束。运行配额已释放。 |
   </Expandable>
 </ResponseField>
 
 <ResponseField name="sessionId" type="string">
-  The active session identifier. Present for `starting`, `running`, and `stopping` states.
+  活动会话标识符。在 `starting`、`running` 和 `stopping` 状态下存在。
 </ResponseField>
 
 <ResponseField name="expiresAt" type="string (RFC3339)">
-  The time at which the active session expires.
+  活动会话的过期时间。
 </ResponseField>
 
 <ResponseField name="connectUrl" type="string">
-  Direct URL to open the interactive browser. Only present when `status` is `"running"` and `runtimeKind` is `"neko"`. Requires the profile owner's login session — authorization uses the session cookie, not the viewer's `usr`/`pwd` URL parameters.
+  打开交互式浏览器的直接 URL。仅当 `status` 为 `"running"` 且 `runtimeKind` 为 `"neko"` 时存在。需要配置文件所有者的登录会话，授权使用会话 Cookie，而非查看者的 `usr`/`pwd` URL 参数。
 </ResponseField>
 
 <ResponseField name="cdpBaseUrl" type="string">
-  The CDP base URL with a temporary token. Only returned by `worker_cdp` runtimes.
+  带有临时令牌的 CDP 基础 URL。仅由 `worker_cdp` 运行时返回。
 </ResponseField>
 
 <Note>
-  Both `"starting"` and `"stopping"` states count against the user's concurrent running quota. A `"stopping"` session has not yet released its slot — poll `GET /cloud-browsers/{id}` until you see `"stopped"` before assuming capacity is available.
+  `"starting"` 和 `"stopping"` 状态都计入用户的并发运行配额。`"stopping"` 会话尚未释放其槽位，请轮询 `GET /cloud-browsers/{id}` 直到返回 `"stopped"` 后再假设容量可用。
 </Note>
 
-### Example responses
+### 响应示例
 
 <CodeGroup>
 
@@ -595,31 +595,31 @@ The runtime status object returned by cloud browser endpoints. It describes the 
 
 ---
 
-## Google Trends Result Metadata
+## Google Trends 结果元数据
 
-Additional top-level fields returned alongside the standard SPA result by successful `google-trends-explore` responses. These fields describe whether the result was collected live or served from the server cache.
+成功的 `google-trends-explore` 响应在标准 SPA 结果之外返回的额外顶级字段。这些字段描述结果是从实时浏览器会话收集的，还是从服务器缓存提供的。
 
 <ResponseField name="source" type='"sunbrowser" | "cache"' required>
-  Indicates whether the result was collected from a live browser session (`"sunbrowser"`) or served from the server-side cache (`"cache"`).
+  指示结果是从实时浏览器会话（`"sunbrowser"`）收集的，还是从服务器端缓存（`"cache"`）提供的。
 </ResponseField>
 
 <ResponseField name="cached" type="boolean" required>
-  `true` when this response was served from the cache.
+  当此响应从缓存提供时为 `true`。
 </ResponseField>
 
 <ResponseField name="stale" type="boolean" required>
-  `true` when the cached result is stale. The response was served from cache but the data may be outdated.
+  当缓存结果已过期时为 `true`。响应已从缓存提供，但数据可能已过时。
 </ResponseField>
 
 <ResponseField name="collectedAt" type="string (RFC3339Nano)" required>
-  The timestamp at which the result was actually collected, in RFC3339Nano format.
+  结果实际收集的时间戳，格式为 RFC3339Nano。
 </ResponseField>
 
 <ResponseField name="attempts" type="integer" required>
-  The number of collection attempts made before the result was returned. Cache HIT responses always report `0`. Stale responses report the number of attempts already made when the result was reported.
+  返回结果前进行的收集尝试次数。缓存命中响应始终报告 `0`。过期响应报告结果报告时已进行的尝试次数。
 </ResponseField>
 
-### Example
+### 示例
 
 ```json
 {

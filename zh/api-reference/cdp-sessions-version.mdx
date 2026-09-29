@@ -1,0 +1,113 @@
+---
+title: "发现 CDP 端点"
+sidebarTitle: "发现端点"
+description: "获取会话的 Chrome DevTools Protocol 发现 JSON，包括已预重写的 WebSocket 调试器 URL。"
+api: "GET /cdp/sessions/{sessionId}/json/version"
+authMethod: "none"
+playground: "interactive"
+---
+
+检索会话的 Chrome DevTools Protocol 发现 JSON。响应包含一个 `webSocketDebuggerUrl`，已预重写为公共的、会话范围的 CDP WebSocket 路径。直接使用它，无需手动构造 URL。
+
+<ParamField path="sessionId" type="string" required>
+  由 `POST /cdp/sessions` 或 `GET /cdp/sessions` 返回的会话 ID。
+</ParamField>
+
+<ParamField query="token" type="string" required>
+  创建会话时返回的 `cdpBaseUrl` 中已内嵌的数据令牌。请勿在此处替换为你的 `x-api-key`。
+</ParamField>
+
+## 响应
+
+<ResponseField name="Browser" type="string">
+  Chrome 版本字符串，例如 `Chrome/136.0.0.0`。
+</ResponseField>
+
+<ResponseField name="Protocol-Version" type="string">
+  CDP 协议版本，例如 `1.3`。
+</ResponseField>
+
+<ResponseField name="User-Agent" type="string">
+  浏览器的 User-Agent 字符串。
+</ResponseField>
+
+<ResponseField name="V8-Version" type="string">
+  V8 引擎版本。
+</ResponseField>
+
+<ResponseField name="WebKit-Version" type="string">
+  WebKit 版本。
+</ResponseField>
+
+<ResponseField name="webSocketDebuggerUrl" type="string">
+  已预重写的浏览器 CDP 端点 WebSocket URL。直接传递给你的 CDP 客户端。
+</ResponseField>
+
+| Status | 含义 |
+| --- | --- |
+| `200` | Chrome 发现 JSON，包含已重写的 `webSocketDebuggerUrl`。 |
+| `401` | 数据令牌缺失或无效。 |
+| `404` / `409` / `410` | 会话缺失、正在停止或已过期。 |
+| `502` | 无法从云端后端获取上游 CDP 发现。 |
+| `503` | 会话后端不可用。 |
+
+## 通过 WebSocket 连接
+
+升级到浏览器 CDP 端点的 WebSocket 连接。CDP 消息在你的客户端和云端运行的 Chromium 实例之间双向代理。直接使用发现端点返回的 `webSocketDebuggerUrl`，而非手动构造此 URL。
+
+<ParamField path="sessionId" type="string" required>
+  当前 CDP 会话 ID。
+</ParamField>
+
+<ParamField path="browserId" type="string" required>
+  发现端点的浏览器目标 ID。建议直接复制完整的 `webSocketDebuggerUrl`，而非自己组装此路径。
+</ParamField>
+
+<ParamField query="token" type="string" required>
+  用于发现的同一个数据令牌：内嵌在 `cdpBaseUrl` 中，也在发现端点返回的 `webSocketDebuggerUrl` 中。
+</ParamField>
+
+| Status | 含义 |
+| --- | --- |
+| `101` | WebSocket 升级成功；CDP 消息现在双向代理。 |
+| `401` | 数据令牌缺失或无效。 |
+| `404` / `409` / `410` | 会话缺失、正在停止或已过期。 |
+| `502` | 云端后端 CDP 连接在 101 升级前失败。 |
+| `503` | 会话后端不可用。 |
+
+<RequestExample>
+
+```bash cURL
+curl -sS "https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN"
+```
+
+```javascript JavaScript
+// Step 1: fetch the discovery document
+const discovery = await fetch(
+  "https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN"
+).then((response) => response.json());
+
+// Step 2: open a WebSocket using the pre-built URL
+const socket = new WebSocket(discovery.webSocketDebuggerUrl);
+
+socket.addEventListener("open", () => {
+  console.log("CDP WebSocket connected");
+});
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "Browser": "Chrome/136.0.0.0",
+  "Protocol-Version": "1.3",
+  "User-Agent": "Mozilla/5.0 ...",
+  "V8-Version": "13.6.233.8",
+  "WebKit-Version": "537.36 (@revision)",
+  "webSocketDebuggerUrl": "wss://api.adscrawl.net/cdp/sessions/SESSION_ID/devtools/browser/BROWSER_ID?token=<data-token>"
+}
+```
+
+</ResponseExample>

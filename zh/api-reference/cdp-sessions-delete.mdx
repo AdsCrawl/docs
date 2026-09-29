@@ -1,0 +1,58 @@
+---
+title: "删除 CDP 会话"
+sidebarTitle: "删除会话"
+description: "立即终止指定的 CDP 会话并释放其容量，使其不再占用你的并发限制。"
+api: "DELETE /cdp/sessions/{sessionId}"
+playground: "interactive"
+---
+
+立即终止 CDP 会话并释放其容量。
+
+<ParamField path="sessionId" type="string" required>
+  要终止的会话 ID，由 `POST /cdp/sessions` 或 `GET /cdp/sessions` 返回。
+</ParamField>
+
+## 响应
+
+<ResponseField name="ok" type="boolean">
+  删除是否成功。
+</ResponseField>
+
+| Status | 含义 |
+| --- | --- |
+| `200` | 会话删除成功。 |
+| `401` | `x-api-key` 缺失或无效。 |
+| `403` | 该会话不属于当前 API 密钥。 |
+| `404` | 会话 ID 未找到。 |
+| `409` | 会话已在停止过程中。 |
+| `410` | 会话已过期。 |
+| `503` | 分配的浏览器后端不可用。 |
+
+<Tip>
+  当自动化完成时，请务必删除会话。未使用的会话会一直占用你的并发限制，直到过期或被显式删除。
+</Tip>
+
+<RequestExample>
+
+```bash cURL
+curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 Deleted
+{
+  "ok": true
+}
+```
+
+```json 404 Not Found
+{
+  "error": "CDP session not found"
+}
+```
+
+</ResponseExample>

@@ -1,24 +1,12 @@
 ---
-title: "List Cloud Browser Profiles and Quotas — GET /cloud-browsers"
-sidebarTitle: "List Browsers"
-description: "列出你账户下所有已保存的云浏览器配置文件，同时返回分页元数据和账户的保存配置数上限与并发运行上限。"
+title: "列出云浏览器配置"
+sidebarTitle: "浏览器列表"
+description: "检索你账户下所有已保存的云浏览器配置文件，返回包含分页元数据的配置列表以及账户配额信息，包括你可保存的配置数上限、可同时运行的并发上限以及当前已占用的运行槽位数，方便你在启动新浏览器前检查剩余容量，也可以在一个请求中轮询所有配置文件的实时运行状态和交互式查看器连接地址。"
+api: "GET /cloud-browsers"
+playground: "interactive"
 ---
 
-检索你账户下所有已保存的云浏览器配置文件，并附带一些全账户配额字段，告诉你最多可保存多少配置文件（`limit`）、同时可运行多少个（`runningLimit`），以及当前已占用多少个运行槽位（`runningCount`）。在启动新浏览器前使用此端点检查剩余容量，或在一个请求中轮询所有配置文件的实时状态。
-
-## 认证
-
-每个请求都必须包含以下方式之一：
-
-| 方式 | 请求头 |
-| --- | --- |
-| API 密钥 | `x-api-key: <API_KEY>` |
-| 会话 JWT | `Authorization: Bearer <SESSION_JWT>` |
-| Dashboard 会话 Cookie | （由浏览器自动发送） |
-
-资源以认证用户为作用域。以上三种方式均可用于列表、创建、启动、详情、开始和停止。
-
-## 查询参数
+检索你账户下所有已保存的云浏览器配置文件，并附带一些全账户配额字段，告诉你最多可保存多少配置文件（`limit`）、同时可运行多少个（`runningLimit`），以及当前已占用多少个运行槽位（`runningCount`）。此端点接受 `x-api-key`、`Authorization: Bearer` 会话 JWT 或 Dashboard 会话 Cookie 进行认证。
 
 <ParamField query="page" default="1" type="integer">
   要获取的页码。默认为 `1`；无效或非正值会回退到 `1`。上限为 `10000`。
@@ -29,10 +17,6 @@ description: "列出你账户下所有已保存的云浏览器配置文件，同
 </ParamField>
 
 ## 响应
-
-### 200 — 成功
-
-返回分页的配置文件列表以及反映账户当前状态的配额字段。
 
 <ResponseField name="ok" type="boolean">
   成功时始终为 `true`。
@@ -47,7 +31,7 @@ description: "列出你账户下所有已保存的云浏览器配置文件，同
     </ResponseField>
 
     <ResponseField name="source" type="string">
-      配置文件来源——通过 `POST /cloud-browsers` 创建的是 `manual`，通过 `POST /cloud-browsers/launch` 创建的是 `launch`。
+      配置文件来源：通过 `POST /cloud-browsers` 创建的是 `manual`，通过 `POST /cloud-browsers/launch` 创建的是 `launch`。
     </ResponseField>
 
     <ResponseField name="deleteOnStop" type="boolean">
@@ -129,7 +113,7 @@ description: "列出你账户下所有已保存的云浏览器配置文件，同
 </ResponseField>
 
 <ResponseField name="limit" type="integer">
-  你套餐的保存配置文件上限——你同时最多可保存的配置文件数量。达到此上限后再创建新配置文件会返回 `409`。
+  你套餐的保存配置文件上限：你同时最多可保存的配置文件数量。达到此上限后再创建新配置文件会返回 `409`。
 </ResponseField>
 
 <ResponseField name="runningLimit" type="integer">
@@ -140,23 +124,19 @@ description: "列出你账户下所有已保存的云浏览器配置文件，同
   当前在你的所有配置文件、所有页面和所有 API 密钥中处于 `starting`、`running` 或 `stopping` 状态的会话总数。此计数不包括通过 `/cdp/sessions` 创建的临时远程 CDP 会话。
 </ResponseField>
 
+| Code | Meaning |
+| --- | --- |
+| `200` | 成功 |
+| `401` | 未认证 |
+| `403` | 会话数已达上限 |
+| `500` | 内部错误 |
+| `503` | 运行时不可用 |
+
 <Note>
-  `runningCount` 包含 **所有三种活跃状态**——`starting`、`running` 和 `stopping`——因为这三种状态都会占用一个运行槽位。会话直到达到 `stopped` 状态才会释放其槽位。
+  `runningCount` 包含 **所有三种活跃状态**（`starting`、`running` 和 `stopping`），因为这三种状态都会占用一个运行槽位。会话直到达到 `stopped` 状态才会释放其槽位。
 </Note>
 
-### 401 — 未认证
-
-认证缺失、无效或已过期。
-
-### 503 — 运行时不可用
-
-`CDP_WORKER_UNAVAILABLE`，或云浏览器运行时暂时无法访问。暂时的连接丢失不能确认会话已停止；其配额槽位仍然被保留。
-
-### 500 — 内部错误
-
-内部服务故障。请使用指数退避重试。
-
-## 列表请求示例
+<RequestExample>
 
 ```bash cURL
 curl --fail-with-body --silent --show-error --max-time 65 \
@@ -164,7 +144,9 @@ curl --fail-with-body --silent --show-error --max-time 65 \
   -H 'x-api-key: <api-key>'
 ```
 
-## 列表响应示例
+</RequestExample>
+
+<ResponseExample>
 
 ```json 200 OK
 {
@@ -203,131 +185,4 @@ curl --fail-with-body --silent --show-error --max-time 65 \
 }
 ```
 
----
-
-## GET /cloud-browsers/:id — 获取配置文件详情
-
-通过持久性 `id` 获取单个已保存云浏览器配置文件的完整状态。使用此端点检查特定配置文件的当前 `runtime.status`，在运行时获取其 `connectUrl`，或在启动和关闭期间轮询。响应形状与列表端点返回的 `data` 数组中的配置文件对象相同，但直接返回，没有外层包装。
-
-### 路径参数
-
-<ParamField path="id" type="string (UUID)" required>
-  由 `POST /cloud-browsers`（创建）、`POST /cloud-browsers/launch`，或 `GET /cloud-browsers`（列表）返回的持久性配置文件标识符。这与运行时 `sessionId` 不同。
-</ParamField>
-
-### 详情响应
-
-#### 200 — 成功
-
-直接返回配置文件对象（没有 `ok` 或 `data` 包装）。
-
-<ResponseField name="id" type="string (UUID)">
-  持久性配置文件标识符。
-</ResponseField>
-
-<ResponseField name="remark" type="string | null">
-  创建时保存的可选标签。如果未设置则为 `null`。
-</ResponseField>
-
-<ResponseField name="browserSettings" type="object">
-  已保存的配置（viewport、locale、timezoneId、代理显示信息、cookies、指纹）。代理凭据已从响应中移除。
-</ResponseField>
-
-<ResponseField name="proxyDisplayIp" type="string | null">
-  最后观察到的代理出口 IP 地址，如果未设置则为 `null`。
-</ResponseField>
-
-<ResponseField name="proxyDisplayRegion" type="string | null">
-  最后观察到的代理区域，如果未设置则为 `null`。
-</ResponseField>
-
-<ResponseField name="lastOpenedAt" type="string (RFC3339) | null">
-  最近一次成功启动的时间戳，如果配置文件从未运行过则为 `null`。
-</ResponseField>
-
-<ResponseField name="updatedAt" type="string (RFC3339)">
-  最近一次配置文件更新的时间戳。
-</ResponseField>
-
-<ResponseField name="runtime" type="object">
-  此配置文件的当前运行时状态。参见上面列表响应中描述的运行时字段。
-</ResponseField>
-
-#### 401 — 未认证
-
-认证缺失、无效或已过期。
-
-#### 404 — 未找到
-
-配置文件不存在或属于其他用户。
-
-#### 503 — 运行时不可用
-
-`CDP_WORKER_UNAVAILABLE`，或云浏览器运行时暂时无法访问。暂时的连接丢失不能确认会话已停止；其配额槽位仍然被保留。
-
-#### 500 — 内部错误
-
-内部服务故障。
-
-### 详情请求示例
-
-```bash cURL
-curl --fail-with-body --silent --show-error --max-time 65 \
-  -X GET 'https://api.adscrawl.net/cloud-browsers/<browser-id>' \
-  -H 'x-api-key: <api-key>'
-```
-
-### 详情响应示例
-
-<CodeGroup>
-
-```json 200 Stopped
-{
-  "id": "<browser-id>",
-  "source": "manual",
-  "deleteOnStop": false,
-  "remark": "work profile",
-  "browserSettings": {
-    "viewport": {
-      "width": 1440,
-      "height": 900
-    }
-  },
-  "proxyDisplayIp": null,
-  "proxyDisplayRegion": null,
-  "lastOpenedAt": null,
-  "updatedAt": "2026-09-07T08:00:00.000Z",
-  "runtime": {
-    "runtimeKind": "neko",
-    "status": "stopped"
-  }
-}
-```
-
-```json 200 Running
-{
-  "id": "<browser-id>",
-  "source": "manual",
-  "deleteOnStop": false,
-  "remark": "work profile",
-  "browserSettings": {
-    "viewport": {
-      "width": 1440,
-      "height": 900
-    }
-  },
-  "proxyDisplayIp": "203.0.113.42",
-  "proxyDisplayRegion": "US",
-  "lastOpenedAt": "2026-09-07T08:30:00.000Z",
-  "updatedAt": "2026-09-07T08:00:00.000Z",
-  "runtime": {
-    "runtimeKind": "neko",
-    "status": "running",
-    "sessionId": "<session-id>",
-    "expiresAt": "2026-09-07T09:30:00.000Z",
-    "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
-  }
-}
-```
-
-</CodeGroup>
+</ResponseExample>

@@ -1,36 +1,18 @@
 ---
-title: "Stop a Running Cloud Browser — POST /cloud-browsers/:id/stop"
+title: "Stop Cloud Browser"
 sidebarTitle: "Stop Browser"
 description: "Stop a running cloud browser, end billing, and release the concurrent running slot. The saved profile is retained for future restarts."
+api: "POST /cloud-browsers/{id}/stop"
+playground: "interactive"
 ---
 
-Stop a running cloud browser to end billing and free up your concurrent running slot. Call this endpoint when you are done with an interactive session — closing the viewer tab, losing your connection, or letting the session expire in the UI does **not** stop billing. A confirmed `200` response with `runtime.status: stopped` is the only signal that the browser has stopped and the running slot has been released. The saved profile and all its configuration are retained after stop; the browser can be restarted at any time.
-
-## Authentication
-
-Include one of the following on every request:
-
-| Method | Header |
-|---|---|
-| API key | `x-api-key: <API_KEY>` |
-| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
-| Dashboard session cookie | _(sent automatically by the browser)_ |
-
-## Path Parameter
+Stop a running cloud browser to end billing and free up your concurrent running slot. Call this endpoint when you are done with an interactive session. Closing the viewer tab, losing your connection, or letting the session expire in the UI does **not** stop billing. A confirmed `200` response with `runtime.status: stopped` is the only signal that the browser has stopped and the running slot has been released. The saved profile and all its configuration are retained after stop; the browser can be restarted at any time.
 
 <ParamField path="id" type="string (UUID)" required>
   The persistent profile identifier returned by create or list. This is distinct from the runtime `sessionId`.
 </ParamField>
 
-## Request Body
-
-No request body is required or accepted.
-
-## Responses
-
-### 200 — Stopped
-
-Stop is confirmed. The running slot has been released. Calling stop again on an already-stopped browser also returns `200` — you are never charged twice.
+## Response
 
 <ResponseField name="ok" type="boolean">
   Always `true`.
@@ -48,49 +30,32 @@ Stop is confirmed. The running slot has been released. Calling stop again on an 
 </ResponseField>
 
 <Note>
-  Calling stop on a browser that is already `stopped` returns `200` with `runtime.status: stopped` — the running slot is not double-released and no additional charge is applied.
+  Calling stop on a browser that is already `stopped` returns `200` with `runtime.status: stopped`. The running slot is not double-released and no additional charge is applied.
 </Note>
 
-### 202 — Stopping (in progress)
+| Status | Meaning |
+| --- | --- |
+| 200 | Stop is confirmed. The running slot has been released. Calling stop again on an already-stopped browser also returns `200`. |
+| 202 | Another stop operation is already in progress. The browser is still stopping and the running slot remains reserved. Poll `GET /cloud-browsers/{id}` with a bounded retry loop until `runtime.status` reaches `stopped`. Retry `POST /cloud-browsers/{id}/stop` periodically if the status stays in `stopping`. |
+| 401 | Authentication is missing, invalid, or expired. |
+| 404 | The profile does not exist or belongs to another user. |
+| 409 | `CDP_SESSION_STARTING`: the browser is still in the `starting` phase. Wait for startup to complete, then retry the stop request. |
+| 503 | `CDP_WORKER_UNAVAILABLE`, or the cloud browser runtime is temporarily unreachable. A transient loss of contact does not confirm the browser has stopped; the running slot remains reserved. Inspect the profile status and retry stop once reachability is restored. |
+| 500 | A failed or timed-out stop is **not** a confirmed stop. The browser may still be in `stopping` state and continue to reserve the running slot. Inspect the profile with `GET /cloud-browsers/{id}` and retry stop after the service recovers. |
 
-Another stop operation is already in progress. The browser is still stopping and the running slot remains reserved. Poll `GET /cloud-browsers/{id}` with a bounded retry loop until `runtime.status` reaches `stopped`. Retry `POST /cloud-browsers/{id}/stop` periodically if the status stays in `stopping`.
+<Warning>
+  **Closing the viewer tab does not stop the browser.** Always call `POST /cloud-browsers/{id}/stop` to end the session and stop billing. Billing continues at 1 credit per minute until a confirmed stop.
+</Warning>
 
-<ResponseField name="ok" type="boolean">
-  Always `true`.
-</ResponseField>
+<Info>
+  After a confirmed stop, the **saved profile is retained**, not deleted. It continues to count toward your saved-profile allowance and can be restarted at any time. Profiles are only removed by an explicit `DELETE /cloud-browsers/{id}` call. Profiles created via `POST /cloud-browsers/launch` follow the same retention policy: `deleteOnStop` is always `false`.
+</Info>
 
-<ResponseField name="runtime" type="object">
-  <Expandable title="Runtime fields">
-    <ResponseField name="status" type="string">
-      Always `"stopping"` in a `202` response.
-    </ResponseField>
-    <ResponseField name="sessionId" type="string">
-      The session identifier of the session being stopped.
-    </ResponseField>
-  </Expandable>
-</ResponseField>
+<Tip>
+  Use a **bounded polling loop** for reliable stop confirmation. Call stop, then if the response is `202`, poll `GET /cloud-browsers/{id}` every 2 seconds (up to about 30 attempts) until `runtime.status` is `stopped`. The Node.js lifecycle example in the create profile docs shows a complete implementation.
+</Tip>
 
-### 401 — Unauthenticated
-
-Authentication is missing, invalid, or expired.
-
-### 404 — Not Found
-
-The profile does not exist or belongs to another user.
-
-### 409 — CDP Session Starting
-
-`CDP_SESSION_STARTING`: the browser is still in the `starting` phase. Wait for startup to complete, then retry the stop request.
-
-### 503 — Runtime Unavailable
-
-`CDP_WORKER_UNAVAILABLE`, or the cloud browser runtime is temporarily unreachable. A transient loss of contact does not confirm the browser has stopped; the running slot remains reserved. Inspect the profile status and retry stop once reachability is restored.
-
-### 500 — Internal Error
-
-A failed or timed-out stop is **not** a confirmed stop. The browser may still be in `stopping` state and continue to reserve the running slot. Inspect the profile with `GET /cloud-browsers/{id}` and retry stop after the service recovers.
-
-## Request Example
+<RequestExample>
 
 ```bash cURL
 curl --fail-with-body --silent --show-error --max-time 65 \
@@ -98,9 +63,10 @@ curl --fail-with-body --silent --show-error --max-time 65 \
   -H 'x-api-key: <api-key>'
 ```
 
-## Response Examples
+</RequestExample>
 
-<CodeGroup>
+<ResponseExample>
+
 ```json 200 Stopped
 {
   "ok": true,
@@ -139,18 +105,5 @@ curl --fail-with-body --silent --show-error --max-time 65 \
   "code": "CDP_SESSION_STARTING"
 }
 ```
-</CodeGroup>
 
-## Important Behaviour
-
-<Warning>
-  **Closing the viewer tab does not stop the browser.** Always call `POST /cloud-browsers/{id}/stop` to end the session and stop billing. Billing continues at 1 credit per minute until a confirmed stop.
-</Warning>
-
-<Info>
-  After a confirmed stop, the **saved profile is retained** — not deleted. It continues to count toward your saved-profile allowance and can be restarted at any time. Profiles are only removed by an explicit `DELETE /cloud-browsers/{id}` call. Profiles created via `POST /cloud-browsers/launch` follow the same retention policy: `deleteOnStop` is always `false`.
-</Info>
-
-<Tip>
-  Use a **bounded polling loop** for reliable stop confirmation. Call stop, then if the response is `202`, poll `GET /cloud-browsers/{id}` every 2 seconds (up to ~30 attempts) until `runtime.status` is `stopped`. The Node.js lifecycle example in the create profile docs shows a complete implementation.
-</Tip>
+</ResponseExample>
