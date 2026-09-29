@@ -1,0 +1,198 @@
+---
+title: "Create and Launch a Browser — POST /cloud-browsers/launch"
+sidebarTitle: "Launch Browser"
+description: "Create a cloud browser profile and start it in one request. Returns 201 only after the browser reaches running state with a live connectUrl."
+---
+
+Use this endpoint when you want a running browser immediately without a separate create-then-start flow. A single `POST /cloud-browsers/launch` saves a new profile **and** starts it, blocking until the browser reaches `running` state before returning `201`. The response includes `runtime.connectUrl` — open that URL in a browser signed in as the profile owner to access the interactive session. The saved profile persists after you stop the browser and can be restarted, queried, or deleted just like any manually created profile.
+
+<Warning>
+  Each call to this endpoint creates a **new** profile with no idempotency key. Never automatically retry a failed launch request. If the response includes an `id`, inspect that profile and call `POST /cloud-browsers/{id}/stop` (with retries) before attempting a new launch.
+</Warning>
+
+## Authentication
+
+Include one of the following on every request:
+
+| Method | Header |
+|---|---|
+| API key | `x-api-key: <API_KEY>` |
+| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
+| Dashboard session cookie | _(sent automatically by the browser)_ |
+
+## Request Body
+
+The body must be a single JSON object of at most 1 MiB. Unknown top-level fields — including `countryCode`, `source`, and `browserSettings` — are rejected with `400`.
+
+<ParamField body="proxy" type="object" required>
+  Custom proxy configuration. Required on every request regardless of authentication method. No saved proxy, managed region, or previous run's proxy can replace this field.
+
+  Supply either the `server` form or the split `protocol` + `host` + `port` form:
+
+  - `server` — full URL: `http://proxy.example.com:8080` or `socks5://proxy.example.com:1080`. Must include an explicit port (1–65535). Must not contain embedded credentials, path, query, or fragment. Cannot be combined with `host`.
+  - `protocol` — `http` or `socks5`.
+  - `host` — proxy hostname.
+  - `port` — integer or numeric string from 1 to 65535.
+
+  Omit both `username` and `password` for an unauthenticated proxy, or supply both as non-empty strings. A proxy failure must never fall back to a direct connection.
+</ParamField>
+
+<ParamField body="tabs" type="array">
+  HTTP(S) URLs to open as tabs when the browser starts. Defaults to `[]` (no tabs injected). Up to 8 entries; each URL must be at most 16,384 bytes without embedded credentials, control characters, or surrounding whitespace. Each entry is either a URL string or an object `{ url, active? }`. Set `active: true` on at most one tab to make it the active tab; the first tab becomes active when none is selected.
+</ParamField>
+
+<ParamField body="cookies" type="array">
+  Cookies to inject before the browser opens. Defaults to `[]`. Up to 10,000 entries within the 1 MiB request limit. Required fields per entry: `name`, `domain` (non-empty strings); `value` defaults to an empty string. Optional fields: `path` (defaults to `/`), `secure`, `httpOnly`, `session` (booleans), `expires` (Unix seconds), `sameSite` (`Strict` | `Lax` | `None`). Expired entries are filtered; unknown fields and invalid types are rejected.
+</ParamField>
+
+<ParamField body="fingerprint" type="object">
+  Browser fingerprint settings for this session. Defaults: `webRtc=forward`; all other signals (`webGl`, `webGpu`, `webGlImage`, `canvas`, `audioContext`, `clientRects`, `speechVoices`, `fonts`, `hardware`, `doNotTrack`) default to random. Partial input fills remaining defaults. Optional `hardwareConcurrency` and `deviceMemory` accept integers 1–64; the server generates the runtime seed.
+</ParamField>
+
+<ParamField body="apiKeyId" type="string (UUID)">
+  Required when authenticating with a session cookie or `Authorization: Bearer`. Selects which of your active API keys to use for billing. When authenticating with `x-api-key` directly, this field is optional — if supplied, it must match the key used in the header.
+</ParamField>
+
+## Responses
+
+### 201 — Browser Running
+
+Returned **only** after the browser reaches `running` state. The `Location` response header points to `GET /cloud-browsers/{id}` for subsequent queries.
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="id" type="string (UUID)">
+  Persistent profile identifier. Store this immediately — you need it to stop, query, or delete the browser.
+</ResponseField>
+
+<ResponseField name="source" type="string">
+  Always `"launch"` for profiles created via this endpoint.
+</ResponseField>
+
+<ResponseField name="deleteOnStop" type="boolean">
+  Always `false`. The profile is retained after the browser stops.
+</ResponseField>
+
+<ResponseField name="runtime" type="object">
+  Runtime state at the moment the response is sent.
+
+  <Expandable title="Runtime fields">
+    <ResponseField name="runtimeKind" type="string">
+      `neko` or `worker_cdp`. `neko` omits `cdpBaseUrl`.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Always `"running"` in a successful `201` response.
+    </ResponseField>
+    <ResponseField name="sessionId" type="string">
+      Active session identifier.
+    </ResponseField>
+    <ResponseField name="expiresAt" type="string (RFC3339)">
+      Session expiry timestamp.
+    </ResponseField>
+    <ResponseField name="connectUrl" type="string">
+      Direct URL to the interactive browser viewer. Open this in a browser signed in as the profile owner. Use the URL exactly as returned — never construct it manually or append API keys, cookies, or proxy credentials.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### 400 — Bad Request
+
+`PROXY_REQUIRED`, `INVALID_PROXY`, `INVALID_TABS`, `INVALID_COOKIES`, or `INVALID_FINGERPRINT_SETTINGS`. Explicit `null`, unknown fields, invalid JSON, and incorrect types are all rejected before any profile is created.
+
+### 401 — Unauthenticated
+
+Authentication is missing, invalid, or expired.
+
+### 402 — Payment Required
+
+`PAID_PLAN_REQUIRED` or `INSUFFICIENT_CREDITS`. No profile is created.
+
+### 403 — Forbidden
+
+The supplied `apiKeyId` belongs to another user or does not match the authenticated key. No profile is created.
+
+### 409 — Conflict
+
+Either the saved-profile allowance is full (`Cloud Browser limit reached`) or the running allowance is full or zero (`CLOUD_BROWSER_CONCURRENCY_LIMIT`). When a profile **was** created before the conflict was detected, the response includes `id`, `source: "launch"`, `deleteOnStop: false`, `deleted: false`, and the actual runtime status. The profile remains saved and counts toward your allowance.
+
+### 502 / 503 / 504 / 500 — Runtime or Server Error
+
+Errors that occur after profile creation include `id`, `runtime`, and `Location` in the response body. Cleanup may leave the session in `stopping` state, which still reserves a running slot until confirmed stopped.
+
+<Warning>
+  When the response contains an `id` alongside a 5xx status, do **not** automatically retry the launch. Instead, call `POST /cloud-browsers/{id}/stop` with a bounded retry loop until `runtime.status` reaches `stopped`, then decide whether to launch again.
+</Warning>
+
+## Request Example
+
+<Warning>
+  Use `--max-time 200` (or equivalent) for your HTTP client. The endpoint waits up to 60 seconds for the browser to reach `running` state, and cleanup after a failed startup can take up to 120 additional seconds.
+</Warning>
+
+```bash cURL
+curl --fail-with-body --silent --show-error --max-time 200 \
+  -X POST 'https://api.adscrawl.net/cloud-browsers/launch' \
+  -H 'x-api-key: <api-key>' \
+  -H 'content-type: application/json' \
+  --data '{
+  "proxy": {
+    "server": "http://proxy.example.com:8080",
+    "username": "<proxy-user>",
+    "password": "<proxy-password>"
+  },
+  "tabs": [
+    "https://example.com"
+  ],
+  "cookies": [
+    {
+      "name": "sid",
+      "value": "<cookie-value>",
+      "domain": "example.com",
+      "path": "/",
+      "secure": true
+    }
+  ],
+  "fingerprint": {
+    "canvas": "real"
+  }
+}'
+```
+
+## Response Examples
+
+<CodeGroup>
+```json 201 Running
+{
+  "ok": true,
+  "id": "<browser-id>",
+  "source": "launch",
+  "deleteOnStop": false,
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "running",
+    "sessionId": "<session-id>",
+    "expiresAt": "2026-09-07T09:00:00.000Z",
+    "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
+  }
+}
+```
+
+```json 504 Stopping (cleanup in progress)
+{
+  "error": "Cloud browser runtime request timed out",
+  "code": "CLOUD_RUNTIME_TIMEOUT",
+  "id": "<browser-id>",
+  "source": "launch",
+  "deleteOnStop": false,
+  "deleted": false,
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "stopping",
+    "sessionId": "<session-id>",
+    "expiresAt": "2026-09-07T09:00:00.000Z"
+  }
+}
+```
+</CodeGroup>

@@ -1,0 +1,118 @@
+{
+  "projectType": "api-service",
+  "projectName": "Adscrawl",
+  "projectDescription": "Adscrawl is a browser automation API that lets developers fetch rendered HTML, extract structured data, capture screenshots, and run full Playwright/Puppeteer sessions through residential proxies.",
+  "theme": "luma",
+  "primaryColor": "#0071e3",
+  "lightColor": "#7c7c7e",
+  "darkColor": "#070707",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/browser-tasks",
+              "concepts/remote-cdp",
+              "concepts/cloud-browsers",
+              "concepts/proxies"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/fetch-html",
+              "guides/extract-data",
+              "guides/screenshots",
+              "guides/playwright-automation",
+              "guides/cloud-browser-sessions"
+            ]
+          },
+          {
+            "group": "Pricing & Limits",
+            "pages": [
+              "pricing",
+              "credits-and-limits"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Browser Tasks",
+            "pages": [
+              "api-reference/html",
+              "api-reference/screenshot",
+              "api-reference/spa-extract"
+            ]
+          },
+          {
+            "group": "Remote CDP",
+            "pages": [
+              "api-reference/cdp-sessions",
+              "api-reference/cdp-live-token"
+            ]
+          },
+          {
+            "group": "Cloud Browsers",
+            "pages": [
+              "api-reference/cloud-browsers-list",
+              "api-reference/cloud-browsers-create",
+              "api-reference/cloud-browsers-launch",
+              "api-reference/cloud-browsers-start",
+              "api-reference/cloud-browsers-stop"
+            ]
+          },
+          {
+            "group": "Schemas",
+            "pages": [
+              "api-reference/schemas"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Rendered HTML & Markdown extraction via POST /html",
+    "Full-page and element-level screenshots via POST /screenshot",
+    "SPA structured data extraction with DOM and network field targeting",
+    "Remote CDP sessions compatible with Playwright, Puppeteer, and raw CDP",
+    "Cloud Browser profiles with saved cookies, fingerprints, and proxy settings",
+    "Residential proxy routing with 100+ country/region options",
+    "Browser fingerprint randomization (canvas, WebGL, WebRTC, fonts, etc.)",
+    "CAPTCHA solving for reCAPTCHA, Turnstile, and AWS WAF",
+    "Pre-built site templates (SimilarWeb, Google Trends, Chrome Web Store)"
+  ],
+  "publicApiSurface": [
+    "POST /html",
+    "POST /screenshot",
+    "POST /spa-extract",
+    "GET /spa-extract/templates",
+    "POST /cdp/sessions",
+    "GET /cdp/sessions",
+    "DELETE /cdp/sessions/:sessionId",
+    "GET /cdp/sessions/:sessionId/json/version",
+    "WS /cdp/sessions/:sessionId/devtools/browser/:browserId",
+    "POST /cdp/live-token",
+    "WS /cdp/live/:sessionId",
+    "GET /cloud-browsers",
+    "POST /cloud-browsers",
+    "POST /cloud-browsers/launch",
+    "GET /cloud-browsers/:id",
+    "POST /cloud-browsers/:id/start",
+    "POST /cloud-browsers/:id/stop"
+  ]
+}

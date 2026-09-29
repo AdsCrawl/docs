@@ -1,0 +1,226 @@
+---
+title: "通过远程 CDP 会话使用 Playwright 自动化浏览器"
+sidebarTitle: "Playwright Automation"
+description: "将 Playwright 或 Puppeteer 连接到远程 AdsCrawl 云浏览器，通过 CDP 运行完整的多步骤自动化，并走住宅代理。"
+---
+
+通过 Chrome DevTools Protocol (CDP) 将 Playwright 或 Puppeteer 连接到专用云浏览器，以进行超越单页获取的多步骤自动化。AdsCrawl 在你配置的住宅代理后配置真实的 Chromium 实例，返回一个 `cdpBaseUrl` 供你直接连接，并且仅在会话处于活动状态时计费。
+
+## 完整自动化流程
+
+<Steps>
+  <Step title="创建 CDP 会话">
+    发送 `POST /cdp/sessions` 请求并携带你所需的浏览器设置。API 返回 `sessionId` 和 `cdpBaseUrl`，后者包含嵌入的数据令牌。
+
+    ```bash
+    curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
+      -H "content-type: application/json" \
+      -H "x-api-key: $ADSCRAWL_API_KEY" \
+      -d '{
+        "idleTimeoutMs": 300000,
+        "maxSessionMs": 1800000,
+        "browserSettings": {
+          "countryCode": "US",
+          "userAgentMode": "random",
+          "viewport": { "width": 1440, "height": 900 }
+        }
+      }'
+    ```
+
+    响应：
+
+    ```json
+    {
+      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+      "expiresAt": "2026-04-21T10:30:00.000Z",
+      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+    }
+    ```
+  </Step>
+  <Step title="使用 cdpBaseUrl 连接 Playwright">
+    将 `cdpBaseUrl` 直接传递给 `chromium.connectOverCDP()`。Playwright 处理 WebSocket 握手，你无需手动构建任何 URL。
+  </Step>
+  <Step title="自动化：导航、点击、填写、等待">
+    使用完整的 Playwright API，包括 `page.goto()`、`page.fill()`、`page.click()`、`page.waitForSelector()` 等。浏览器运行在 AdsCrawl 的基础设施中，通过你配置的代理路由。
+  </Step>
+  <Step title="收集你的结果">
+    读取 DOM 内容、截取屏幕截图、捕获网络响应，或导出 cookies 和存储，满足你的自动化需求。
+  </Step>
+  <Step title="关闭浏览器并删除会话">
+    调用 `browser.close()` 释放 Playwright 的连接，然后发送 `DELETE /cdp/sessions/:sessionId` 终止云浏览器并停止计费。
+  </Step>
+</Steps>
+
+## TypeScript 示例
+
+<CodeGroup>
+
+```typescript TypeScript (Playwright)
+import { chromium } from 'playwright';
+
+async function main() {
+  // 1. 创建 CDP 会话
+  const sessionRes = await fetch('https://api.adscrawl.net/cdp/sessions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': process.env.ADSCRAWL_API_KEY!,
+    },
+    body: JSON.stringify({
+      idleTimeoutMs: 300000,
+      maxSessionMs: 1800000,
+      browserSettings: {
+        countryCode: 'US',
+        userAgentMode: 'random',
+        viewport: { width: 1440, height: 900 },
+      },
+    }),
+  });
+  const session = await sessionRes.json();
+
+  // 2. 连接 Playwright
+  const browser = await chromium.connectOverCDP(session.cdpBaseUrl);
+  const page = await browser.newPage();
+
+  // 3. 自动化
+  await page.goto('https://example.com/login');
+  await page.fill('#email', 'user@example.com');
+  await page.fill('#password', 'secret');
+  await page.click('button[type=submit]');
+  await page.waitForSelector('.dashboard');
+
+  // 4. 收集结果
+  const title = await page.title();
+  console.log('Dashboard title:', title);
+
+  // 5. 清理
+  await browser.close();
+  await fetch(
+    `https://api.adscrawl.net/cdp/sessions/${session.sessionId}`,
+    { method: 'DELETE', headers: { 'x-api-key': process.env.ADSCRAWL_API_KEY! } }
+  );
+}
+
+main();
+```
+
+```python Python (Playwright)
+import os
+from playwright.sync_api import sync_playwright
+import requests
+
+# 1. 创建 CDP 会话
+session_res = requests.post(
+    'https://api.adscrawl.net/cdp/sessions',
+    headers={'x-api-key': os.environ['ADSCRAWL_API_KEY']},
+    json={
+        'idleTimeoutMs': 300000,
+        'maxSessionMs': 1800000,
+        'browserSettings': {
+            'countryCode': 'US',
+            'userAgentMode': 'random',
+            'viewport': {'width': 1440, 'height': 900},
+        },
+    },
+)
+session = session_res.json()
+
+# 2. 连接并自动化
+with sync_playwright() as p:
+    browser = p.chromium.connect_over_cdp(session['cdpBaseUrl'])
+    page = browser.new_page()
+
+    # 3. 导航并交互
+    page.goto('https://example.com/login')
+    page.fill('#email', 'user@example.com')
+    page.fill('#password', 'secret')
+    page.click('button[type=submit]')
+    page.wait_for_selector('.dashboard')
+
+    # 4. 收集结果
+    print('Dashboard title:', page.title())
+
+    # 5. 关闭浏览器
+    browser.close()
+
+# 删除会话
+requests.delete(
+    f"https://api.adscrawl.net/cdp/sessions/{session['sessionId']}",
+    headers={'x-api-key': os.environ['ADSCRAWL_API_KEY']},
+)
+```
+
+</CodeGroup>
+
+## 会话限制和 429 错误
+
+每个 API 密钥有最大并发 CDP 会话数限制。达到限制后尝试创建新会话将返回 `429`：
+
+```json
+{
+  "error": "CDP sessions per API key limit reached"
+}
+```
+
+列出你的活动会话以检查创建新会话前正在运行什么：
+
+```bash
+curl -sS "https://api.adscrawl.net/cdp/sessions" \
+  -H "x-api-key: $ADSCRAWL_API_KEY"
+```
+
+删除任何不再需要的会话，然后重试。
+
+## 会话超时
+
+<Tip>
+  设置 `idleTimeoutMs` 以在一段时间不活动后自动终止会话。这可以防止自动化在到达清理步骤之前崩溃时产生失控的费用。超过服务器上限的值将自动被钳制。
+</Tip>
+
+将 `maxSessionMs` 用作长时间自动化运行的硬性挂钟限制。两个超时都在服务器端强制执行，无需客户端心跳保活。
+
+## 数据令牌安全
+
+<Warning>
+  `cdpBaseUrl` 包含一个数据令牌，授予对你的浏览器会话 CDP WebSocket 的直接访问权限。将其视为凭证处理：切勿记录它，切勿将其嵌入客户端代码，切勿将其包含在出现在浏览器历史中的 URL 中。仅限服务器端使用。
+</Warning>
+
+## browserSettings 参考
+
+<Accordion title="browserSettings 字段">
+  <ParamField body="countryCode" type="string">
+    托管代理区域。`"GLOBAL"` 从 15 个热门区域中选择。两位字母代码（例如 `"US"`、`"DE"`）优先使用可信代理并动态回退。不能与 `proxy` 组合使用。
+  </ParamField>
+
+  <ParamField body="viewport" type="object">
+    浏览器窗口大小，例如 `{ "width": 1440, "height": 900 }`。
+  </ParamField>
+
+  <ParamField body="userAgentMode" type='"random" | "custom"'>
+    设置为 `"random"` 以获得服务器选择的真实 User-Agent 字符串。
+  </ParamField>
+
+  <ParamField body="userAgentOs" type='"windows" | "macos"'>
+    随机 User-Agent 选择的操作系统。默认为 `"windows"`。
+  </ParamField>
+
+  <ParamField body="locale" type="string">
+    浏览器区域设置，例如 `"en-US"`。
+  </ParamField>
+
+  <ParamField body="timezoneId" type="string">
+    IANA 时区 ID，例如 `"America/New_York"`。
+  </ParamField>
+
+  <ParamField body="cookies" type="cookies[]">
+    在任何导航之前注入浏览器上下文的 cookies。
+  </ParamField>
+
+  <ParamField body="fingerprint" type="fingerprint">
+    浏览器指纹设置。省略时，`canvas` 和 `webGlImage` 默认为 `real`；其他信号使用连贯的随机化配置文件。
+  </ParamField>
+
+  <ParamField body="proxy" type="proxy">
+    自定义代理配置。不能与 `countryCode` 组合使用。
+  </ParamField>
+</Accordion>

@@ -1,0 +1,354 @@
+---
+title: "AdsCrawl JavaScript 和 TypeScript SDK"
+description: "安装并使用 AdsCrawl JavaScript SDK 获取渲染内容、截图、结构化数据和远程 CDP 浏览器会话。Node.js 20+，零运行时依赖。"
+sidebarTitle: "JavaScript"
+---
+
+AdsCrawl JavaScript SDK 适用于 Node.js 20 及更高版本，同时支持 ESM 和 CommonJS，并附带完整的 TypeScript 类型和编辑器自动补全。它使用原生 `fetch`，零运行时依赖。
+
+<Note>
+  请将 API 密钥保留在服务端代码中。该 SDK 不适用于浏览器打包环境。
+</Note>
+
+## 安装
+
+```bash
+npm install adscrawl
+```
+
+当你需要使用 Playwright 或 Puppeteer 连接远程浏览器时，请单独安装自动化库：
+
+```bash
+npm install adscrawl playwright-core
+# 或
+npm install adscrawl puppeteer-core
+```
+
+<Card title="adscrawl-js on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-js">
+  查看源代码、可运行示例和版本发布。
+</Card>
+
+## 认证并发起第一次请求
+
+在控制台中[创建 API 密钥](https://app.adscrawl.net/register/?utm_source=npm&utm_medium=sdk&utm_campaign=adscrawl-js)，并在服务器环境中设置 `ADSCRAWL_API_KEY`。你也可以通过 `new AdsCrawl({ apiKey: '...' })` 显式传入密钥。
+
+```ts
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const markdown = await client.markdown({
+  url: 'https://www.adscrawl.net',
+  waitUntil: 'domcontentloaded',
+});
+console.log(markdown);
+```
+
+CommonJS：
+
+```js
+const { AdsCrawl } = require('adscrawl');
+
+const client = new AdsCrawl();
+
+async function main() {
+  const markdown = await client.markdown({
+    url: 'https://www.adscrawl.net',
+    waitUntil: 'domcontentloaded',
+  });
+  console.log(markdown);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+```
+
+## 渲染内容和截图
+
+```ts
+import { writeFile } from 'node:fs/promises';
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const html = await client.html({ url: 'https://www.adscrawl.net' });
+console.log(html);
+
+const article = await client.article({ url: 'https://www.adscrawl.net' });
+console.log(article.title, article.textContent);
+
+const png = await client.screenshot({
+  url: 'https://www.adscrawl.net',
+  viewport: { width: 1440, height: 900 },
+  fullPage: true,
+  waitUntil: 'load',
+});
+await writeFile('page.png', png);
+```
+
+`html()` 在 `contentMode` 为 `'html'`（默认值）或 `'markdown'` 时返回字符串，在 `'json'` 时返回 `Article`。`markdown()` 和 `article()` 是这些模式的便捷方法。`screenshot()` 返回包含 PNG 的 `Uint8Array`。
+
+## 代理和指纹
+
+通过自定义代理路由，或使用托管的 `countryCode` 路由。两者不能同时使用。
+
+```ts
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const markdown = await client.markdown({
+  url: 'https://www.adscrawl.net',
+  countryCode: 'US',
+  userAgentMode: 'random',
+  userAgentOs: 'windows',
+});
+console.log(markdown);
+```
+
+AdsCrawl 使用真实浏览器，支持可配置的路由和浏览器指纹。随机化设置会在操作系统、GPU、硬件、字体和相关信号之间生成一致的配置。该浏览器工作流已通过验证，可以访问并渲染 BrowserScan、Pixelscan 和 IPhey，并返回截图。
+
+以下完整示例打开 BrowserScan 并将返回的 PNG 保存为 `browserscan.png`：
+
+```ts
+import { writeFile } from 'node:fs/promises';
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const server = process.env.ADSCRAWL_PROXY_SERVER;
+const username = process.env.ADSCRAWL_PROXY_USERNAME;
+const password = process.env.ADSCRAWL_PROXY_PASSWORD;
+if (Boolean(username) !== Boolean(password)) {
+  throw new Error('Set both proxy username and password, or neither.');
+}
+if (!server && (username || password)) {
+  throw new Error('Set ADSCRAWL_PROXY_SERVER when supplying proxy credentials.');
+}
+const routing = server
+  ? { proxy: username && password ? { server, username, password } : { server } }
+  : { countryCode: 'GLOBAL' };
+
+const png = await client.screenshot({
+  url: 'https://www.browserscan.net/',
+  ...routing,
+  viewport: { width: 1440, height: 900 },
+  fullPage: true,
+  waitUntil: 'networkidle',
+  timeoutMs: 60_000,
+  userAgentMode: 'random',
+  userAgentOs: 'windows',
+  fingerprint: {
+    webRtc: 'forward',
+    webGl: 'random',
+    webGpu: 'random',
+    webGlImage: 'random',
+    canvas: 'random',
+    audioContext: 'random',
+    clientRects: 'random',
+    speechVoices: 'random',
+    fonts: 'random',
+    hardware: 'random',
+    doNotTrack: 'random',
+  },
+}, { timeoutMs: 75_000 });
+
+const output = 'browserscan.png';
+await writeFile(output, png);
+console.log(`Saved fingerprint-check screenshot to ${output}`);
+```
+
+## 结构化提取
+
+列出可用的模板及其参数：
+
+```ts
+const { templates } = await client.spa.templates();
+console.log(templates);
+
+const result = await client.spa.extract({
+  template: 'google-trends-explore',
+  keyword: 'playwright,puppeteer',
+});
+console.log(result.data);
+```
+
+对于你自己的页面，可以指定 DOM 或网络字段。泛型描述了预期的输出，但不会在运行时验证你的自定义数据。请务必检查 `missingFields`。
+
+```ts
+const result = await client.spa.extract<{ title: string }>({
+  url: 'https://www.adscrawl.net',
+  fields: {
+    title: { source: 'dom', selector: 'h1', value: 'text', required: true },
+  },
+});
+console.log(result.data.title);
+console.log(result.missingFields);
+
+const inspection = await client.spa.inspect({ url: 'https://www.adscrawl.net' });
+console.log(inspection.candidates);
+```
+
+使用 `actions` 进行点击、输入、滚动和等待，使用 `waitFor` 等待可见的 CSS 选择器或文本出现。有关模板特定的要求，请参阅 [API 参考](/zh/api-reference/spa-extract)。
+
+## 远程 CDP 浏览器
+
+通过 CDP 将 Playwright 浏览器连接到 AdsCrawl 远程会话：
+
+```ts
+import { chromium } from 'playwright-core';
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const session = await client.cdp.create({
+  idleTimeoutMs: 600_000,
+  maxSessionMs: 3_600_000,
+  browserSettings: { viewport: { width: 1440, height: 900 } },
+});
+
+try {
+  const browser = await chromium.connectOverCDP(session.cdpBaseUrl);
+  const context = browser.contexts()[0] ?? await browser.newContext();
+  const page = context.pages()[0] ?? await context.newPage();
+  await page.goto('https://www.adscrawl.net');
+  console.log(await page.title());
+} finally {
+  await client.cdp.close(session.sessionId);
+}
+```
+
+创建响应包含 `sessionId`、`expiresAt` 和 `cdpBaseUrl`，不包含 WebSocket URL。对于 Puppeteer，请使用发现模式：
+
+```ts
+import puppeteer from 'puppeteer-core';
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const session = await client.cdp.create();
+try {
+  const version = await client.cdp.getVersion(session);
+  const browser = await puppeteer.connect({
+    browserWSEndpoint: version.webSocketDebuggerUrl,
+  });
+  try {
+    const pages = await browser.pages();
+    const page = pages[0] ?? await browser.newPage();
+    await page.goto('https://www.adscrawl.net');
+    console.log(await page.title());
+  } finally {
+    browser.disconnect();
+  }
+} finally {
+  await client.cdp.close(session.sessionId);
+}
+```
+
+`cdp.list()` 返回 `{ ok, data }`。`cdp.liveToken(sessionId)` 返回一个有效期为 30 秒的单次使用实时控制 URL。将所有连接 URL 视为机密，不要记录它们。
+
+## 持久化云浏览器
+
+云浏览器配置在停止后保留其配置。使用 API 密钥启动时，每次启动都需要显式提供顶层自定义代理，即使配置文件中已保存了代理。
+
+将 `ADSCRAWL_PROXY_SERVER` 设置为你的 HTTP 或 SOCKS5 代理 URL，并带上明确的端口。如果需要认证，还需设置 `ADSCRAWL_PROXY_USERNAME` 和 `ADSCRAWL_PROXY_PASSWORD`。
+
+```ts
+import { setTimeout as delay } from 'node:timers/promises';
+import AdsCrawl, {
+  AdsCrawlAPIError,
+  AdsCrawlConnectionError,
+  AdsCrawlTimeoutError,
+} from 'adscrawl';
+
+const client = new AdsCrawl();
+const server = process.env.ADSCRAWL_PROXY_SERVER;
+if (!server) throw new Error('Set ADSCRAWL_PROXY_SERVER to your proxy URL.');
+const username = process.env.ADSCRAWL_PROXY_USERNAME;
+const password = process.env.ADSCRAWL_PROXY_PASSWORD;
+if (Boolean(username) !== Boolean(password)) {
+  throw new Error('Set both proxy username and password, or neither.');
+}
+const proxy = username && password ? { server, username, password } : { server };
+
+async function stopAndWait(id: string) {
+  const end = Date.now() + 120_000;
+  while (Date.now() < end) {
+    try {
+      const stopped = await client.cloudBrowsers.stop(id, {
+        timeoutMs: Math.max(1, Math.min(10_000, end - Date.now())),
+      });
+      if (stopped.runtime.status === 'stopped') return;
+    } catch (error) {
+      const retryable = error instanceof AdsCrawlTimeoutError
+        || error instanceof AdsCrawlConnectionError
+        || (error instanceof AdsCrawlAPIError
+          && (error.code === 'CDP_SESSION_STARTING' || error.status >= 500));
+      if (!retryable) throw error;
+    }
+    const remaining = end - Date.now();
+    if (remaining > 0) await delay(Math.min(2000, remaining));
+  }
+  throw new Error(`Stop unconfirmed for ${id}; inspect the profile and retry stop.`);
+}
+
+const { id } = await client.cloudBrowsers.create({ remark: 'My workflow' });
+try {
+  await client.cloudBrowsers.start(id, { proxy });
+  const profile = await client.cloudBrowsers.get(id);
+  console.log({ id: profile.id, status: profile.runtime.status });
+  // profile.runtime.connectUrl 会在一个经过认证的浏览器中以配置文件所有者的身份打开交互式浏览器。
+} finally {
+  await stopAndWait(id);
+}
+```
+
+`cloudBrowsers.launch({ proxy, tabs?, cookies?, fingerprint? })` 在单个请求中创建持久化配置文件并启动它。失败的启动可能在 `AdsCrawlAPIError.id` 中返回一个配置文件 ID，请检查并停止该配置文件。如果未收到 ID，请在重复启动前检查 `cloudBrowsers.list()`。
+
+`cloudBrowsers.list({ page?, pageSize? })` 包含分页和已保存/运行配额信息。停止响应中的 `runtime.status: 'stopping'` 表示关闭正在进行中，配额仍被保留。关闭查看器不会停止计费。SDK 涵盖 API 密钥端点，配置文件的 `PATCH`/`DELETE` 和查看器认证需要仪表盘会话。
+
+## 配置、超时和取消
+
+```ts
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl({
+  apiKey: process.env.ADSCRAWL_API_KEY,
+  baseURL: 'https://api.adscrawl.net',
+  timeoutMs: 90_000,
+  // fetch: customFetch,
+});
+
+const controller = new AbortController();
+const result = await client.markdown(
+  { url: 'https://www.adscrawl.net', timeoutMs: 60_000 }, // 服务端任务超时。
+  { timeoutMs: 75_000, signal: controller.signal }, // HTTP 超时 / 取消。
+);
+console.log(result);
+```
+
+API 密钥默认取自 `ADSCRAWL_API_KEY`。API 源地址默认依次使用 `ADSCRAWL_BASE_URL`、`ADSCRAWL_API_URL`，然后是 `https://api.adscrawl.net`。HTTP 超时覆盖请求及其响应读取。普通调用默认 90 秒，`cloudBrowsers.launch()` 默认 195 秒以允许启动和服务器清理。对于长时间任务，请将 HTTP 超时设置为大于服务端任务超时。
+
+<Warning>
+  取消或超时并不代表远端工作已停止。
+</Warning>
+
+## 错误处理
+
+```ts
+import AdsCrawl, { AdsCrawlAPIError, AdsCrawlTimeoutError } from 'adscrawl';
+
+const client = new AdsCrawl();
+
+try {
+  const markdown = await client.markdown({ url: 'https://www.adscrawl.net' });
+  console.log(markdown);
+} catch (error) {
+  if (error instanceof AdsCrawlAPIError) {
+    console.error(error.status, error.code, error.traceId);
+    // error.body 包含已脱敏的服务响应。
+  } else if (error instanceof AdsCrawlTimeoutError) {
+    console.error('Request timed out. Inspect sessions/profiles before retrying browser creation.');
+  } else {
+    throw error;
+  }
+}
+```
+
+API 错误保留 HTTP `status`、稳定的 `code`、已脱敏的 `body`、`traceId`，以及可用的 `requestId`。网络失败使用 `AdsCrawlConnectionError`；无效或空响应用 `AdsCrawlResponseError`。调用方取消保留 `AbortSignal` 的原因。请求不会自动重试。

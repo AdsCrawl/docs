@@ -1,0 +1,159 @@
+---
+title: "Proxy Routing: Built-In, Regional, and Custom Proxies"
+sidebarTitle: "Proxies"
+description: "Every AdsCrawl browser runs through a proxy. Learn how to use built-in residential proxies, route by country, or supply your own proxy server."
+---
+
+Every browser that AdsCrawl runs — whether a browser task, a Remote CDP session, or a cloud browser — is routed through a proxy. Residential proxies are built into the platform, so you get sensible defaults out of the box without any configuration. When you need traffic to appear from a specific country, or when your workflow requires a dedicated proxy service, AdsCrawl gives you precise control through two optional fields: `countryCode` and `proxy`.
+
+## The three proxy modes
+
+### Omitted — automatic trusted proxy
+
+If you send a browser task or create a CDP session without specifying `countryCode` or `proxy`, AdsCrawl automatically assigns a random trusted residential proxy. This is the simplest option and works well when geographic location does not matter.
+
+### `countryCode` — managed regional proxy
+
+Set `countryCode` to a two-letter ISO region code to prefer a trusted proxy exit in that region. If no trusted proxy is available in the requested region, AdsCrawl falls back to a dynamic proxy automatically.
+
+Set `countryCode` to `"GLOBAL"` to use a dynamic exit that rotates across 15 popular regions — useful when you want geographic diversity without pinning to one country.
+
+```json
+{
+  "url": "https://example.com/article",
+  "contentMode": "markdown",
+  "countryCode": "DE"
+}
+```
+
+Supported country codes include:
+
+| Code | Region |
+|---|---|
+| `US` | United States |
+| `BR` | Brazil |
+| `DE` | Germany |
+| `SG` | Singapore |
+| `JP` | Japan |
+| `CA` | Canada |
+| `AU` | Australia |
+| `GLOBAL` | Dynamic — 15 popular regions |
+
+<Tip>
+  When using `countryCode`, also set `locale` and `timezoneId` to match the target region. For example, pair `"DE"` with `locale: "de-DE"` and `timezoneId: "Europe/Berlin"` so the browser's fingerprint matches the proxy exit location.
+</Tip>
+
+<Note>
+  `countryCode` is **not available** for API key callers starting cloud browsers. API key cloud browser starts require an explicit `proxy` object on every request. Session/JWT Bearer callers can use `countryCode` for cloud browser starts.
+</Note>
+
+### `proxy` — bring your own proxy
+
+Provide a `proxy` object to route the browser through your own HTTP or SOCKS5 proxy server. Use this when you have a dedicated proxy service, need sticky sessions, or require a specific IP.
+
+**HTTP proxy with credentials:**
+
+```json
+{
+  "proxy": {
+    "server": "http://proxy.example.com:8080",
+    "username": "proxy-user",
+    "password": "proxy-password"
+  }
+}
+```
+
+**SOCKS5 proxy using split fields:**
+
+```json
+{
+  "proxy": {
+    "protocol": "socks5",
+    "host": "proxy.example.com",
+    "port": 1080,
+    "username": "proxy-user",
+    "password": "proxy-password"
+  }
+}
+```
+
+**Unauthenticated proxy:**
+
+```json
+{
+  "proxy": {
+    "server": "http://proxy.example.com:8080"
+  }
+}
+```
+
+### Custom proxy format rules
+
+- Use `server` for a full URL (`http://host:port` or `socks5://host:port`), **or** use `protocol` + `host` + `port` — never both in the same request
+- Ports must be integers or integer strings between 1 and 65535
+- Do **not** embed credentials in the URL — pass `username` and `password` as separate fields
+- `username` and `password` must be supplied together; omit both for an unauthenticated proxy
+- No path, query string, or fragment is allowed in `server`
+
+## Combining `countryCode` and `proxy`
+
+`countryCode` and `proxy` are mutually exclusive. Passing both in the same request returns `400 COUNTRY_PROXY_CONFLICT`. Choose one:
+
+<CodeGroup>
+```json Use countryCode
+{
+  "url": "https://example.com",
+  "countryCode": "JP"
+}
+```
+
+```json Use proxy
+{
+  "url": "https://example.com",
+  "proxy": {
+    "server": "http://proxy.example.com:8080",
+    "username": "user",
+    "password": "pass"
+  }
+}
+```
+</CodeGroup>
+
+## Example: countryCode in a POST /html request
+
+<CodeGroup>
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/html" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com/article",
+    "contentMode": "markdown",
+    "countryCode": "US",
+    "locale": "en-US",
+    "timezoneId": "America/New_York",
+    "userAgentMode": "random",
+    "userAgentOs": "windows"
+  }'
+```
+
+```json Request body
+{
+  "url": "https://example.com/article",
+  "contentMode": "markdown",
+  "countryCode": "US",
+  "locale": "en-US",
+  "timezoneId": "America/New_York",
+  "userAgentMode": "random",
+  "userAgentOs": "windows"
+}
+```
+</CodeGroup>
+
+## Proxy failure behavior
+
+<Warning>
+  **Never remove the `proxy` field to work around a proxy error.** Proxy failures must not fall back to a direct connection — AdsCrawl enforces this at the infrastructure level to protect your real IP and maintain proxy hygiene. If your proxy is unreachable, fix the configuration or wait for service recovery before retrying.
+</Warning>
+
+When a managed proxy allocation fails, the start or task request is rejected immediately. When a custom proxy is unreachable, the request fails with a `502` or `503` error. Inspect the error code, correct the proxy configuration, and retry.

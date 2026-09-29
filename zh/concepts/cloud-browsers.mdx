@@ -1,0 +1,175 @@
+---
+title: "Cloud Browsers：持久化、可复用的浏览器配置文件"
+sidebarTitle: "Cloud Browsers"
+description: "保存浏览器配置文件，使 cookies、指纹和代理设置在会话之间持久化，随时启动、停止并反复使用。"
+---
+
+Cloud browsers 是保存的浏览器配置文件，在多次会话之间保留其配置，包括视口、区域设置、指纹设置、cookies 和代理偏好。与临时的 Remote CDP 会话不同，云端浏览器配置文件在你停止运行实例后仍然存在。你可以稍后重新启动它，并准确恢复到之前的状态。这使得 cloud browsers 成为需要在多次访问中保持一致的浏览器身份的工作流的正确选择：账户管理、多会话抓取，或任何需要持久、可识别的浏览器身份的任务。
+
+## 生命周期状态
+
+云端浏览器在其生命周期中经历四个状态：
+
+```text
+starting → running → stopping → stopped
+```
+
+- **`starting`** 和 **`stopping`** 仍然占用你的运行配额，不是空闲槽位。
+- **`running`** 是唯一在 API 响应中包含 `connectUrl` 的状态。
+- **`stopped`** 释放运行配额，同时保存的配置文件仍然保留。
+
+通过 `GET /cloud-browsers/:id` 轮询读取实际当前状态。请按 API 返回的原样显示 `runtime.status`，切勿在本地推断或缓存状态。
+
+## 保存的配置文件与运行中的会话
+
+保存配置文件在运行配额方面是免费的，已停止的配置文件占用一个**保存配置文件槽位**，但不占用**运行槽位**。只有处于 `starting`、`running` 或 `stopping` 状态的浏览器才会消耗你的并发运行配额。
+
+你的套餐配额会在每次 `GET /cloud-browsers` 调用中返回：
+
+| 字段 | 含义 |
+| --- | --- |
+| `limit` | 套餐允许保存的最大配置文件数量 |
+| `runningLimit` | 同时运行的浏览器的最大数量 |
+| `runningCount` | 当前处于 starting + running + stopping 状态的浏览器数量 |
+
+<Note>
+  免费套餐允许保存一个配置文件，但**无法启动**浏览器。启动云端浏览器运行时需要付费套餐。
+</Note>
+
+## 打开交互式查看器
+
+当云端浏览器处于 `running` 状态时，`runtime.connectUrl` 字段包含一个 URL，你可以直接在自己的浏览器中打开，实时查看和交互远程会话。此 URL 指向实时浏览器查看器，需要配置文件所有者的**会话 cookie**，仅 API key 无法获取查看器访问权限。
+
+<Warning>
+  **关闭查看器标签页不会停止计费。** 浏览器会继续运行并消耗积分，直到你显式调用 `POST /cloud-browsers/:id/stop`。使用完毕后，请务必通过 API 或 dashboard 停止浏览器。
+</Warning>
+
+## 两种创建和启动方式
+
+### 方式一：先创建再启动
+
+当你希望保存配置文件供以后使用，或需要精细控制浏览器启动时间时，请使用此方式。
+
+<Steps>
+  <Step title="创建配置文件">
+    `POST /cloud-browsers` 保存配置文件配置并返回一个 `id`。此时浏览器**尚未**启动，不消耗运行配额。
+
+    ```bash
+    curl --fail-with-body -sS -X POST "https://api.adscrawl.net/cloud-browsers" \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "remark": "work profile",
+        "browserSettings": {
+          "viewport": { "width": 1440, "height": 900 }
+        }
+      }'
+    ```
+  </Step>
+  <Step title="启动浏览器">
+    `POST /cloud-browsers/:id/start` 启动保存的配置文件。每次启动请求都**必须**传入代理，已保存的 `browserSettings.proxy`、上一次运行的代理以及 `countryCode` 都不能替代必需的顶层 `proxy` 字段。
+
+    ```bash
+    curl --fail-with-body -sS -X POST \
+      "https://api.adscrawl.net/cloud-browsers/BROWSER_ID/start" \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "proxy": {
+          "server": "http://proxy.example.com:8080",
+          "username": "proxy-user",
+          "password": "proxy-password"
+        }
+      }'
+    ```
+
+    该端点会等待启动确认，仅在浏览器达到 `running` 状态后才返回 `200`。
+  </Step>
+</Steps>
+
+### 方式二：一步启动
+
+`POST /cloud-browsers/launch` 在单个请求中创建配置文件**并**启动浏览器，等待 `running` 状态后返回 `201`。当你希望无需单独的创建步骤即可立即打开浏览器时，请使用此方式。
+
+```bash
+curl --fail-with-body -sS --max-time 200 \
+  -X POST "https://api.adscrawl.net/cloud-browsers/launch" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "proxy": {
+      "server": "http://proxy.example.com:8080",
+      "username": "proxy-user",
+      "password": "proxy-password"
+    },
+    "tabs": ["https://example.com"]
+  }'
+```
+
+<Warning>
+  每次调用 `POST /cloud-browsers/launch` 都会创建一个**新的配置文件**，没有幂等键。如果请求失败或响应丢失，在重试前请先检查 `GET /cloud-browsers`。切勿在未确认是否已创建配置文件的情况下自动重复失败的启动调用。
+</Warning>
+
+## 代理要求
+
+代理规则因认证方式而异：
+
+<Tabs>
+  <Tab title="API key (X-API-Key)">
+    每次启动请求（包括 `/launch` 和 `/start`）都**必须**包含一个有效的顶层 `proxy` 对象。已保存的 `browserSettings.proxy`、上一次运行的代理以及 `countryCode` 都不能替代它。
+
+    ```json
+    {
+      "proxy": {
+        "server": "http://proxy.example.com:8080",
+        "username": "proxy-user",
+        "password": "proxy-password"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Session / JWT Bearer">
+    Dashboard 和 JWT Bearer 调用者可以使用自定义 `proxy` 对象**或** `countryCode`（两位字母地区代码或 `"GLOBAL"`）。使用 session 认证启动时还需要同一用户拥有的活跃 API key 的 `apiKeyId`。
+
+    ```json
+    {
+      "apiKeyId": "YOUR_API_KEY_ID",
+      "countryCode": "GLOBAL"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  代理失败时**绝不能**回退到直连。如果你的代理不可达，请修复它或等待服务恢复，切勿移除 proxy 字段来绕过错误。
+</Warning>
+
+## 积分计费
+
+云端浏览器按**每分钟 1 积分**计费，向上取整，从浏览器成功达到 `running` 状态开始，直到确认停止为止。返回 `202 stopping` 表示关机仍在进行中，积分会继续扣除，直到 `runtime.status` 变为 `stopped`。请使用有限重试循环轮询 `GET /cloud-browsers/:id` 以确认停止。
+
+多次调用 stop 不会重复收费，对已停止的配置文件重复调用 stop 会返回 `200` 及 `runtime.status: "stopped"`，不额外收费。
+
+## API 参考
+
+<CardGroup cols={3}>
+  <Card title="List Cloud Browsers" icon="list" href="/zh/api-reference/cloud-browsers-list">
+    列出保存的配置文件并读取保存和运行配额。
+  </Card>
+
+  <Card title="Create Profile" icon="plus" href="/zh/api-reference/cloud-browsers-create">
+    保存新的浏览器配置文件而不启动运行时。
+  </Card>
+
+  <Card title="Launch" icon="rocket" href="/zh/api-reference/cloud-browsers-launch">
+    在一个请求中创建并启动浏览器，等待 running 状态。
+  </Card>
+
+  <Card title="Start" icon="play" href="/zh/api-reference/cloud-browsers-start">
+    启动先前保存的配置文件并等待 running 确认。
+  </Card>
+
+  <Card title="Stop" icon="stop" href="/zh/api-reference/cloud-browsers-stop">
+    停止运行中的浏览器并释放其运行配额槽位。
+  </Card>
+</CardGroup>

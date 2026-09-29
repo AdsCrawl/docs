@@ -1,0 +1,204 @@
+---
+title: "创建并启动浏览器 — POST /cloud-browsers/launch"
+sidebarTitle: "Launch Browser"
+description: "一次请求创建云浏览器配置并启动。仅在浏览器进入运行状态并返回可用 connectUrl 后才返回 201。"
+---
+
+当你希望立即获得一个正在运行的浏览器，而无需分步创建再启动时，使用此接口。单次 `POST /cloud-browsers/launch` 即可保存新配置 **并** 启动浏览器，阻塞等待浏览器进入 `running` 状态后才返回 `201`。响应中包含 `runtime.connectUrl`，在已登录配置所有者的浏览器中打开该 URL 即可进入交互式会话。停止浏览器后，已保存的配置会继续保留，可像手动创建的配置一样重启、查询或删除。
+
+<Warning>
+  每次调用此接口都会创建 **新的** 配置，且没有幂等键。切勿自动重试失败的启动请求。如果响应中已包含 `id`，请先检查该配置并调用 `POST /cloud-browsers/{id}/stop`（带上重试）再尝试新的启动。
+</Warning>
+
+## 认证
+
+每次请求需包含以下之一：
+
+| 方式 | Header |
+| --- | --- |
+| API 密钥 | `x-api-key: <API_KEY>` |
+| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
+| 控制台会话 cookie | _(由浏览器自动发送)_ |
+
+## 请求体
+
+请求体必须为单个 JSON 对象，最大 1 MiB。未知顶层字段，包括 `countryCode`、`source` 和 `browserSettings`，都会被拒绝并返回 `400`。
+
+<ParamField body="proxy" type="object" required>
+  自定义代理配置。无论使用何种认证方式，每次请求都必须提供。此处不允许用已保存的代理、托管地区或上次运行的代理替代。
+
+  请提供 `server` 形式或拆分的 `protocol` + `host` + `port` 形式：
+
+  - `server` — 完整 URL：`http://proxy.example.com:8080` 或 `socks5://proxy.example.com:1080`。必须包含显式端口（1–65535）。不能包含嵌入的凭证、路径、查询参数或片段。不能与 `host` 同时使用。
+  - `protocol` — `http` 或 `socks5`。
+  - `host` — 代理主机名。
+  - `port` — 整数或数字字符串，范围 1 到 65535。
+
+  无需认证时省略 `username` 和 `password`，或同时提供两者且均为非空字符串。代理失败绝不能回退到直连。
+</ParamField>
+
+<ParamField body="tabs" type="array">
+  浏览器启动时要打开的 HTTP(S) 标签页 URL。默认为 `[]`（不注入标签页）。最多 8 个条目，每个 URL 最长 16,384 字节，不能包含嵌入的凭证、控制字符或首尾空白。每个条目可以是 URL 字符串或对象 `{ url, active? }`。最多将其中一个标签页的 `active` 设为 `true` 以使其成为活动标签页；未指定时第一个标签页为活动标签页。
+</ParamField>
+
+<ParamField body="cookies" type="array">
+  浏览器打开前要注入的 Cookie。默认为 `[]`。在 1 MiB 请求限制内最多 10,000 条。每条必需字段：`name`、`domain`（均为非空字符串）；`value` 默认为空字符串。可选字段：`path`（默认为 `/`）、`secure`、`httpOnly`、`session`（均为布尔值）、`expires`（Unix 时间戳秒数）、`sameSite`（`Strict` | `Lax` | `None`）。过期条目会被过滤；未知字段和无效类型会被拒绝。
+</ParamField>
+
+<ParamField body="fingerprint" type="object">
+  本次会话的浏览器指纹设置。默认值：`webRtc=forward`；其他所有信号（`webGl`、`webGpu`、`webGlImage`、`canvas`、`audioContext`、`clientRects`、`speechVoices`、`fonts`、`hardware`、`doNotTrack`）默认为 `random`。部分输入会自动填充剩余默认。可选的 `hardwareConcurrency` 和 `deviceMemory` 接受整数 1–64；服务器会生成运行时种子。
+</ParamField>
+
+<ParamField body="apiKeyId" type="string (UUID)">
+  使用会话 cookie 或 `Authorization: Bearer` 认证时必需。选择你账户下用于计费的活跃 API 密钥。使用 `x-api-key` 直接认证时此字段可选，如果提供则必须与 Header 中的密钥一致。
+</ParamField>
+
+## 响应
+
+### 201 — 浏览器运行中
+
+仅在浏览器达到 `running` 状态后返回。`Location` 响应 Header 指向 `GET /cloud-browsers/{id}`，用于后续查询。
+
+<ResponseField name="ok" type="boolean">
+  成功时始终为 `true`。
+</ResponseField>
+
+<ResponseField name="id" type="string (UUID)">
+  持久配置标识符。请立即保存 — 你需要用它来停止、查询或删除浏览器。
+</ResponseField>
+
+<ResponseField name="source" type="string">
+  通过此接口创建的配置始终为 `"launch"`。
+</ResponseField>
+
+<ResponseField name="deleteOnStop" type="boolean">
+  始终为 `false`。浏览器停止后配置继续保留。
+</ResponseField>
+
+<ResponseField name="runtime" type="object">
+  响应发送时的运行时状态。
+
+  <Expandable title="Runtime 字段">
+    <ResponseField name="runtimeKind" type="string">
+      `neko` 或 `worker_cdp`。`neko` 省略 `cdpBaseUrl`。
+    </ResponseField>
+
+    <ResponseField name="status" type="string">
+      成功的 `201` 响应中始终为 `"running"`。
+    </ResponseField>
+
+    <ResponseField name="sessionId" type="string">
+      活跃会话标识符。
+    </ResponseField>
+
+    <ResponseField name="expiresAt" type="string (RFC3339)">
+      会话过期时间戳。
+    </ResponseField>
+
+    <ResponseField name="connectUrl" type="string">
+      交互式浏览器查看器的直接 URL。在已登录配置所有者的浏览器中打开。请按原样使用返回的 URL，切勿手动构造或附加 API 密钥、Cookie 或代理凭证。
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### 400 — Bad Request
+
+`PROXY_REQUIRED`、`INVALID_PROXY`、`INVALID_TABS`、`INVALID_COOKIES` 或 `INVALID_FINGERPRINT_SETTINGS`。显式的 `null`、未知字段、无效 JSON 和错误类型都会在创建配置前被拒绝。
+
+### 401 — Unauthenticated
+
+认证缺失、无效或已过期。
+
+### 402 — Payment Required
+
+`PAID_PLAN_REQUIRED` 或 `INSUFFICIENT_CREDITS`。不会创建配置。
+
+### 403 — Forbidden
+
+提供的 `apiKeyId` 属于其他用户，或与认证密钥不匹配。不会创建配置。
+
+### 409 — Conflict
+
+已保存配置配额已满（`Cloud Browser limit reached`）或运行配额已满/为零（`CLOUD_BROWSER_CONCURRENCY_LIMIT`）。如果在检测到冲突前 **已经** 创建了配置，响应会包含 `id`、`source: "launch"`、`deleteOnStop: false`、`deleted: false` 以及实际的运行状态。配置继续保留并计入配额。
+
+### 502 / 503 / 504 / 500 — Runtime 或服务器错误
+
+在配置创建后发生的错误，响应体会包含 `id`、`runtime` 和 `Location`。清理可能使会话处于 `stopping` 状态，该状态仍会占用运行槽位直到确认停止。
+
+<Warning>
+  当响应包含 `id` 且状态码为 5xx 时，请 **不要** 自动重试启动。而应调用 `POST /cloud-browsers/{id}/stop` 并配合有限重试循环，直到 `runtime.status` 达到 `stopped`，然后再决定是否重新启动。
+</Warning>
+
+## 请求示例
+
+<Warning>
+  请为 HTTP 客户端设置 `--max-time 200`（或等效配置）。此接口最多等待 60 秒让浏览器进入 `running` 状态，启动失败后清理最多可能需要额外的 120 秒。
+</Warning>
+
+```bash cURL
+curl --fail-with-body --silent --show-error --max-time 200 \
+  -X POST 'https://api.adscrawl.net/cloud-browsers/launch' \
+  -H 'x-api-key: <api-key>' \
+  -H 'content-type: application/json' \
+  --data '{
+  "proxy": {
+    "server": "http://proxy.example.com:8080",
+    "username": "<proxy-user>",
+    "password": "<proxy-password>"
+  },
+  "tabs": [
+    "https://example.com"
+  ],
+  "cookies": [
+    {
+      "name": "sid",
+      "value": "<cookie-value>",
+      "domain": "example.com",
+      "path": "/",
+      "secure": true
+    }
+  ],
+  "fingerprint": {
+    "canvas": "real"
+  }
+}'
+```
+
+## 响应示例
+
+<CodeGroup>
+
+```json 201 Running
+{
+  "ok": true,
+  "id": "<browser-id>",
+  "source": "launch",
+  "deleteOnStop": false,
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "running",
+    "sessionId": "<session-id>",
+    "expiresAt": "2026-09-07T09:00:00.000Z",
+    "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
+  }
+}
+```
+
+```json 504 Stopping (cleanup in progress)
+{
+  "error": "Cloud browser runtime request timed out",
+  "code": "CLOUD_RUNTIME_TIMEOUT",
+  "id": "<browser-id>",
+  "source": "launch",
+  "deleteOnStop": false,
+  "deleted": false,
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "stopping",
+    "sessionId": "<session-id>",
+    "expiresAt": "2026-09-07T09:00:00.000Z"
+  }
+}
+```
+
+</CodeGroup>

@@ -1,0 +1,180 @@
+---
+title: "Create and Manage Persistent Cloud Browser Sessions"
+sidebarTitle: "Cloud Browser Sessions"
+description: "Create persistent cloud browser profiles with saved cookies and fingerprints, launch them on demand, and view them live in the interactive browser."
+---
+
+Cloud browsers give you a persistent profile — stored cookies, a consistent fingerprint, and saved proxy preferences — that you can launch repeatedly without reconfiguring from scratch each time. Every start resumes exactly where you left off: the browser opens with your injected cookies already set and your fingerprint already applied.
+
+## Launch a cloud browser
+
+<Tabs>
+  <Tab title="Quick Launch">
+    `POST /cloud-browsers/launch` creates a profile and waits until the browser is running before returning. Use this when you want a single request that gives you a ready-to-use `connectUrl`.
+
+    ```bash
+    curl --fail-with-body -sS --max-time 200 \
+      -X POST 'https://api.adscrawl.net/cloud-browsers/launch' \
+      -H 'x-api-key: YOUR_API_KEY' \
+      -H 'content-type: application/json' \
+      -d '{
+        "proxy": {
+          "server": "http://proxy.example.com:8080",
+          "username": "user",
+          "password": "pass"
+        },
+        "tabs": ["https://example.com"],
+        "cookies": [{
+          "name": "session",
+          "value": "abc123",
+          "domain": "example.com",
+          "path": "/"
+        }]
+      }'
+    ```
+
+    A successful `201` response includes a `connectUrl` you can open directly:
+
+    ```json
+    {
+      "ok": true,
+      "id": "<browser-id>",
+      "source": "launch",
+      "deleteOnStop": false,
+      "runtime": {
+        "runtimeKind": "neko",
+        "status": "running",
+        "sessionId": "<session-id>",
+        "expiresAt": "2026-09-07T09:00:00.000Z",
+        "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
+      }
+    }
+    ```
+
+    <Warning>
+      Each call to `/cloud-browsers/launch` creates a **new** profile. If the request fails or the response is lost, inspect `GET /cloud-browsers` before retrying — never automatically repeat the launch POST.
+    </Warning>
+  </Tab>
+  <Tab title="Create then Start">
+    Use two separate requests when you want more control — for example, to save a profile now and start it later, or to verify the profile was created before spending a running slot.
+
+    **Step 1 — Create and save the profile:**
+
+    ```bash
+    curl --fail-with-body -sS \
+      -X POST 'https://api.adscrawl.net/cloud-browsers' \
+      -H 'x-api-key: YOUR_API_KEY' \
+      -H 'content-type: application/json' \
+      -d '{
+        "remark": "work profile",
+        "browserSettings": {
+          "viewport": { "width": 1440, "height": 900 }
+        }
+      }'
+    ```
+
+    Response: `{ "ok": true, "id": "<browser-id>" }`
+
+    **Step 2 — Start the profile (always send the proxy again):**
+
+    ```bash
+    curl --fail-with-body -sS --max-time 65 \
+      -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/start' \
+      -H 'x-api-key: YOUR_API_KEY' \
+      -H 'content-type: application/json' \
+      -d '{
+        "proxy": {
+          "server": "http://proxy.example.com:8080",
+          "username": "user",
+          "password": "pass"
+        }
+      }'
+    ```
+
+    <Note>
+      Every API key start request must include an explicit `proxy` object, even if the profile already has a saved proxy. The saved `browserSettings.proxy` does not substitute for it.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Open the interactive browser viewer
+
+Once `runtime.status` is `"running"`, open the `connectUrl` in any browser where you're signed in to your AdsCrawl account. The viewer lets you control the remote browser interactively in real time.
+
+<Warning>
+  **Closing the viewer tab does not stop the cloud browser.** The session continues running and billing continues at one credit per started minute. Always call `POST /cloud-browsers/:id/stop` explicitly when you're done.
+</Warning>
+
+## Stop a cloud browser
+
+Send a `POST` to stop the running session:
+
+```bash
+curl --fail-with-body -sS --max-time 65 \
+  -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/stop' \
+  -H 'x-api-key: YOUR_API_KEY'
+```
+
+The response status tells you whether stop is confirmed:
+
+| HTTP status | `runtime.status` | Meaning |
+|---|---|---|
+| `200` | `stopped` | Session is fully stopped; running slot released |
+| `202` | `stopping` | Shutdown in progress; quota still reserved |
+| `409` | — | Startup still in progress; wait and retry |
+
+When you receive `202`, poll the profile detail endpoint until `stopped` is confirmed:
+
+```bash
+# Poll until stopped (example — add a bound in production)
+until [ "$(curl -sS 'https://api.adscrawl.net/cloud-browsers/<browser-id>' \
+  -H 'x-api-key: YOUR_API_KEY' | jq -r '.runtime.status')" = "stopped" ]; do
+  echo "Still stopping..."
+  sleep 2
+done
+echo "Stopped."
+```
+
+## Check concurrency limits
+
+Retrieve your current quota usage alongside the profile list:
+
+```bash
+curl -sS 'https://api.adscrawl.net/cloud-browsers?page=1&pageSize=10' \
+  -H 'x-api-key: YOUR_API_KEY' | jq '{limit, runningLimit, runningCount}'
+```
+
+| Field | Meaning |
+|---|---|
+| `limit` | Maximum number of saved profiles on your plan |
+| `runningLimit` | Maximum simultaneous running sessions for your account |
+| `runningCount` | Sessions currently in `starting`, `running`, or `stopping` state |
+
+<Note>
+  If you exceed `runningLimit`, the start or launch request returns `409 CLOUD_BROWSER_CONCURRENCY_LIMIT`. Stop an active session to free a slot before retrying. This is distinct from `409 Cloud Browser limit reached`, which means your saved-profile allowance is full.
+</Note>
+
+## Profile retention and reuse
+
+<Tip>
+  `deleteOnStop` defaults to `false`, so your profile — including saved cookies and tab snapshots — is retained after every stop. You can restart the same profile as many times as you like, or query it while stopped, without losing your accumulated session state.
+</Tip>
+
+Profiles are only removed when you call `DELETE /cloud-browsers/:id` explicitly. A stopped profile still counts toward your saved-profile `limit` but does not consume any running slot.
+
+## Runtime status reference
+
+<Accordion title="Runtime status lifecycle">
+  <ResponseField name="starting" type="status">
+    The browser is initialising. The running slot is reserved. Do not attempt another start on this profile; wait for `running` or handle the error.
+  </ResponseField>
+  <ResponseField name="running" type="status">
+    The browser is live. `connectUrl` is present in the runtime object. Billing is active.
+  </ResponseField>
+  <ResponseField name="stopping" type="status">
+    A stop has been requested but is not yet confirmed. The running slot is still reserved. Poll until `stopped`.
+  </ResponseField>
+  <ResponseField name="stopped" type="status">
+    The session has ended. The running slot is released. The saved profile and its cookies are retained.
+  </ResponseField>
+</Accordion>

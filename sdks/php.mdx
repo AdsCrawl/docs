@@ -1,0 +1,217 @@
+---
+title: "PHP SDK for AdsCrawl"
+description: "Install and use the AdsCrawl PHP SDK to fetch rendered content, screenshots, structured data, and manage remote CDP sessions. PHP 8.1+, standard JSON and cURL extensions only."
+sidebarTitle: "PHP"
+---
+
+The AdsCrawl PHP SDK works with PHP 8.1 and later. It requires only the standard JSON and cURL extensions, uses explicit HTTP deadlines, and returns credential-redacted errors.
+
+<Note>
+  Keep your API key in server-side code. Never expose it in client-side applications.
+</Note>
+
+## Install
+
+```bash
+composer require adscrawl/adscrawl
+```
+
+<Card title="adscrawl-php on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-php">
+  View source, runnable examples, and releases.
+</Card>
+
+## Authenticate and make your first request
+
+[Create an API key](https://app.adscrawl.net/register/?utm_source=packagist&utm_medium=sdk&utm_campaign=adscrawl-php) in the dashboard and set `ADSCRAWL_API_KEY` in your server environment. You can also pass the key to `new Client(apiKey: '...')`.
+
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+$markdown = $client->markdown([
+    'url' => 'https://www.adscrawl.net',
+    'waitUntil' => 'domcontentloaded',
+]);
+echo $markdown;
+```
+
+## Rendered content and screenshots
+
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+$html = $client->html(['url' => 'https://www.adscrawl.net']);
+$article = $client->article(['url' => 'https://www.adscrawl.net']);
+echo $article['title'] . "\n" . $article['textContent'];
+
+$png = $client->screenshot([
+    'url' => 'https://www.adscrawl.net',
+    'viewport' => ['width' => 1440, 'height' => 900],
+    'fullPage' => true,
+    'waitUntil' => 'load',
+]);
+file_put_contents('page.png', $png);
+```
+
+`html()` returns HTML, `markdown()` returns Markdown, `article()` returns an associative array, and `screenshot()` returns PNG bytes. Page options include `viewport`, `locale`, `cookies`, custom `proxy`, managed `countryCode`, `fingerprint`, server-side `timeoutMs`, and navigation `waitUntil`. A custom proxy and managed country cannot be combined.
+
+## Proxy and fingerprint
+
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+$server = getenv('ADSCRAWL_PROXY_SERVER') ?: null;
+$username = getenv('ADSCRAWL_PROXY_USERNAME') ?: null;
+$password = getenv('ADSCRAWL_PROXY_PASSWORD') ?: null;
+if (($username === null) !== ($password === null)) {
+    throw new RuntimeException('Set both proxy username and password, or neither.');
+}
+if ($server === null && ($username !== null || $password !== null)) {
+    throw new RuntimeException('Set ADSCRAWL_PROXY_SERVER with proxy credentials.');
+}
+
+$routing = ['countryCode' => 'GLOBAL'];
+if ($server !== null) {
+    $proxy = ['server' => $server];
+    if ($username !== null && $password !== null) {
+        $proxy += ['username' => $username, 'password' => $password];
+    }
+    $routing = ['proxy' => $proxy];
+}
+
+$png = $client->screenshot([
+    'url' => 'https://www.browserscan.net/',
+    ...$routing,
+    'viewport' => ['width' => 1440, 'height' => 900],
+    'fullPage' => true,
+    'waitUntil' => 'networkidle',
+    'timeoutMs' => 60_000,
+    'userAgentMode' => 'random',
+    'userAgentOs' => 'windows',
+    'fingerprint' => [
+        'webRtc' => 'forward', 'webGl' => 'random', 'webGpu' => 'random',
+        'webGlImage' => 'random', 'canvas' => 'random',
+        'audioContext' => 'random', 'clientRects' => 'random',
+        'speechVoices' => 'random', 'fonts' => 'random',
+        'hardware' => 'random', 'doNotTrack' => 'random',
+    ],
+], timeoutMs: 75_000);
+file_put_contents('browserscan.png', $png);
+```
+
+AdsCrawl uses real browsers with configurable routing and browser fingerprints. Randomized settings are generated as a coherent profile across the operating system, GPU, hardware, fonts, and related signals. This browser workflow has been verified to access and render BrowserScan, Pixelscan, and IPhey and return screenshots.
+
+## Structured extraction
+
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+print_r($client->spa->templates()['templates']);
+
+$result = $client->spa->extract([
+    'url' => 'https://www.adscrawl.net',
+    'fields' => [
+        'title' => ['source' => 'dom', 'selector' => 'h1', 'value' => 'text', 'required' => true],
+    ],
+]);
+echo $result['data']['title'];
+
+$inspection = $client->spa->inspect(['url' => 'https://www.adscrawl.net']);
+print_r($inspection['candidates']);
+```
+
+## Remote CDP browsers
+
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+$session = $client->cdp->create([
+    'idleTimeoutMs' => 600_000,
+    'maxSessionMs' => 3_600_000,
+    'browserSettings' => ['viewport' => ['width' => 1440, 'height' => 900]],
+]);
+try {
+    $version = $client->cdp->getVersion($session);
+    echo $version['Browser'];
+    // Connect a CDP-compatible PHP library to $session['cdpBaseUrl'].
+} finally {
+    $client->cdp->close($session['sessionId']);
+}
+```
+
+`$client->cdp->list()` returns active sessions. `getVersion()` validates the session token URL and deliberately omits the API key. CDP connection URLs contain secrets; do not log them.
+
+## Persistent cloud browsers
+
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+$launched = $client->cloudBrowsers->launch([
+    'proxy' => ['server' => getenv('ADSCRAWL_PROXY_SERVER')],
+    'tabs' => ['https://www.adscrawl.net'],
+]);
+$browserId = $launched['id'];
+try {
+    $profile = $client->cloudBrowsers->get($browserId);
+    echo $profile['runtime']['status'];
+} finally {
+    $client->cloudBrowsers->stop($browserId);
+}
+```
+
+API-key starts and launches require an explicit top-level custom proxy. A `stopping` response means shutdown is pending; poll `get()` until `stopped`. A failed launch may expose a cleanup profile ID as `ApiException::$resourceId`.
+
+## Configuration and errors
+
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+use AdsCrawl\Exception\ApiException;
+use AdsCrawl\Exception\TimeoutException;
+
+$client = new Client(baseUrl: 'https://api.adscrawl.net', timeoutMs: 90_000);
+try {
+    echo $client->markdown(
+        ['url' => 'https://www.adscrawl.net', 'timeoutMs' => 60_000],
+        timeoutMs: 75_000,
+    );
+} catch (ApiException $error) {
+    echo $error->status . ' ' . $error->apiCode . ' ' . $error->traceId;
+} catch (TimeoutException) {
+    echo 'Inspect remote sessions before retrying.';
+}
+```
+
+The API key defaults to `ADSCRAWL_API_KEY`. The base URL defaults to `ADSCRAWL_BASE_URL`, then `ADSCRAWL_API_URL`, then `https://api.adscrawl.net`. Errors include `ApiException`, `TimeoutException`, `ConnectionException`, and `ResponseException`. API response bodies are credential-redacted. The HTTP deadline includes response body reading. Requests are not automatically retried.

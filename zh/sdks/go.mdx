@@ -1,0 +1,321 @@
+---
+title: "AdsCrawl Go SDK"
+description: "安装并使用 AdsCrawl Go SDK 来获取渲染后的内容、截图、结构化数据和管理远程 CDP 会话。支持 Go 1.21+，支持 context，零运行时依赖。"
+sidebarTitle: "Go"
+---
+
+AdsCrawl Go SDK 适用于 Go 1.21 及更高版本。它仅使用 Go 标准库进行 HTTP 通信，支持 `context.Context` 取消和超时，并提供强类型的请求和响应模型。
+
+<Note>
+  请将 API 密钥保存在服务端代码中，切勿在客户端应用中泄露。
+</Note>
+
+## 安装
+
+```bash
+go get github.com/AdsCrawl/adscrawl-go@v0.1.0
+```
+
+<Card title="adscrawl-go on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-go">
+  查看源码、可运行的示例和发布版本。
+</Card>
+
+## 认证并发起首个请求
+
+在 [AdsCrawl 控制台](https://app.adscrawl.net/register/?utm_source=go&utm_medium=sdk&utm_campaign=adscrawl-go) 创建 API 密钥，并在服务器环境中设置 `ADSCRAWL_API_KEY`。你也可以将密钥直接传递给 `adscrawl.NewClient(adscrawl.Config{APIKey: "..."})`。
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+    markdown, err := client.Markdown(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{
+            URL:       "https://www.adscrawl.net",
+            WaitUntil: "domcontentloaded",
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(markdown)
+}
+```
+
+## 渲染内容与截图
+
+`client.HTML(ctx, options)` 返回 HTML; `Markdown` 返回 Markdown; `Article` 返回结构化的 `Article`; `Screenshot` 返回 PNG 字节。页面选项包括 `Viewport`、`Locale`、`Cookies`、`Proxy`、受控的 `CountryCode`、`Fingerprint`、服务端 `TimeoutMS` 以及导航 `WaitUntil`。
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    html, err := client.HTML(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{URL: "https://www.adscrawl.net"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(html)
+
+    article, err := client.Article(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{URL: "https://www.adscrawl.net"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(article.Title, article.TextContent)
+
+    png, err := client.Screenshot(context.Background(), adscrawl.ScreenshotOptions{
+        PageOptions: adscrawl.PageOptions{
+            BrowserSettings: adscrawl.BrowserSettings{
+                Viewport: &adscrawl.Viewport{Width: 1440, Height: 900},
+            },
+            URL:       "https://www.adscrawl.net",
+            WaitUntil: "load",
+        },
+        FullPage: true,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    if err := os.WriteFile("page.png", png, 0600); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+自定义 `Proxy` 和 `CountryCode` 不能同时使用。
+
+## 代理与指纹
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "os"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    routing := adscrawl.BrowserSettings{CountryCode: "GLOBAL"}
+    if server := os.Getenv("ADSCRAWL_PROXY_SERVER"); server != "" {
+        username, password := os.Getenv("ADSCRAWL_PROXY_USERNAME"), os.Getenv("ADSCRAWL_PROXY_PASSWORD")
+        if (username == "") != (password == "") {
+            log.Fatal("set both proxy username and password")
+        }
+        routing = adscrawl.BrowserSettings{
+            Proxy: &adscrawl.Proxy{Server: server, Username: username, Password: password},
+        }
+    } else if os.Getenv("ADSCRAWL_PROXY_USERNAME") != "" || os.Getenv("ADSCRAWL_PROXY_PASSWORD") != "" {
+        log.Fatal("set ADSCRAWL_PROXY_SERVER with proxy credentials")
+    }
+
+    routing.Viewport = &adscrawl.Viewport{Width: 1440, Height: 900}
+    routing.UserAgentMode = "random"
+    routing.UserAgentOS = "windows"
+    routing.Fingerprint = &adscrawl.Fingerprint{
+        WebRTC: "forward", WebGL: "random", WebGPU: "random", WebGLImage: "random",
+        Canvas: "random", AudioContext: "random", ClientRects: "random",
+        SpeechVoices: "random", Fonts: "random", Hardware: "random", DoNotTrack: "random",
+    }
+
+    png, err := client.Screenshot(context.Background(), adscrawl.ScreenshotOptions{
+        PageOptions: adscrawl.PageOptions{
+            BrowserSettings: routing,
+            URL:             "https://www.browserscan.net/",
+            WaitUntil:       "networkidle",
+            TimeoutMS:       60000,
+        },
+        FullPage: true,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    if err := os.WriteFile("browserscan.png", png, 0600); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+AdsCrawl 使用真实的浏览器，支持可配置的路由和浏览器指纹。随机设置会生成一个包含操作系统、GPU、硬件、字体及相关信号的统一配置文件。该浏览器工作流已通过验证，可以访问并渲染 BrowserScan、Pixelscan 和 IPhey 并返回截图。
+
+## 结构化提取
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    result, err := client.SPA.Extract(context.Background(), adscrawl.SPAOptions{
+        URL: "https://www.adscrawl.net",
+        Fields: map[string]adscrawl.Field{
+            "title": {Source: "dom", Selector: "h1", Value: "text", Required: true},
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result.Data["title"], result.MissingFields)
+}
+```
+
+`client.SPA.Templates(ctx)` 列出内置模板。`client.SPA.Inspect(ctx, options)` 建议字段和 schema。
+
+## 远程 CDP 浏览器
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    ctx := context.Background()
+    session, err := client.CDP.Create(ctx, adscrawl.CreateSessionOptions{
+        IdleTimeoutMS: 600000,
+        MaxSessionMS:  3600000,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer func() {
+        if _, err := client.CDP.Close(ctx, session.SessionID); err != nil {
+            log.Printf("close session: %v", err)
+        }
+    }()
+
+    version, err := client.CDP.GetVersion(ctx, session)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(version.Browser)
+    // 将 session.CDPBaseURL 传递给支持 CDP 的浏览器自动化库。
+    // 其中包含密钥，切勿记录到日志中。
+}
+```
+
+`GetVersion` 会验证令牌 URL，并且不会转发 API 密钥。
+
+## 持久化云浏览器
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    server := os.Getenv("ADSCRAWL_PROXY_SERVER")
+    if server == "" {
+        log.Fatal("set ADSCRAWL_PROXY_SERVER before launching a cloud browser")
+    }
+
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    ctx := context.Background()
+    launched, err := client.CloudBrowsers.Launch(ctx, adscrawl.LaunchCloudBrowserOptions{
+        StartCloudBrowserOptions: adscrawl.StartCloudBrowserOptions{
+            Proxy: &adscrawl.Proxy{
+                Server:   server,
+                Username: os.Getenv("ADSCRAWL_PROXY_USERNAME"),
+                Password: os.Getenv("ADSCRAWL_PROXY_PASSWORD"),
+            },
+        },
+        Tabs: []any{"https://www.adscrawl.net"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer func() {
+        if _, err := client.CloudBrowsers.Stop(ctx, launched.ID); err != nil {
+            log.Printf("stop browser: %v", err)
+        }
+    }()
+
+    profile, err := client.CloudBrowsers.Get(ctx, launched.ID)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(profile.ID, profile.Runtime.Status)
+}
+```
+
+云浏览器 API 密钥启动需要先配置顶层代理。`stopping` 响应表示关闭操作正在进行中，调用 `Get` 轮询直到状态变为 `stopped`。启动失败时可能会在 `*adscrawl.APIError` 中返回一个用于清理的 profile ID。
+
+## 配置与错误处理
+
+传递 `Config{Timeout: 75 * time.Second}` 可更改 HTTP 超时时间。设置 `PageOptions.TimeoutMS` 可单独控制远程浏览器任务超时。
+
+```go
+var apiErr *adscrawl.APIError
+if errors.As(err, &apiErr) {
+    // apiErr.Status, apiErr.Code, apiErr.TraceID, apiErr.ID
+}
+```
+
+默认情况下，`ADSCRAWL_API_KEY` 提供 API 密钥。基础 URL 的优先级依次为 `ADSCRAWL_BASE_URL`、`ADSCRAWL_API_URL`，然后是 `https://api.adscrawl.net`。错误类型包括 `APIError`、`TimeoutError`、`ConnectionError` 和 `ResponseError`。HTTP 超时包含响应体读取时间。取消请求并不能证明远程浏览器任务已停止。

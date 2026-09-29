@@ -1,0 +1,59 @@
+---
+title: "AdsCrawl：面向爬虫的浏览器自动化 API"
+sidebarTitle: "Introduction"
+description: "AdsCrawl 是一款面向开发者的浏览器自动化 API，支持通过住宅代理获取渲染后的 HTML、结构化数据、截图以及完整的 CDP 会话。"
+---
+
+AdsCrawl 为你的应用提供完整的浏览器运行环境，并内置住宅代理，让你无需自行管理基础设施。只需发送一个包含目标 URL 的请求，AdsCrawl 就会启动真实的 Chromium 浏览器，渲染页面，并返回你所需的内容：原始 HTML、整洁的 Markdown、结构化 JSON、PNG 截图，或用于多步自动化的实时 CDP 连接。无论你是构建爬虫、监控工具、数据流水线还是 AI 工作流，AdsCrawl 都能帮你处理渲染、代理路由和指纹管理，让你专注于数据本身。
+
+## 核心功能
+
+AdsCrawl 通过统一的基础 URL（`https://api.adscrawl.net`）提供五项核心能力：
+
+- **HTML 提取** —— 从任意 URL 获取完整渲染后的 HTML，或使用内置 Readability 解析器提取整洁的 Markdown 和结构化文章 JSON。
+- **结构化数据提取** —— 通过 CSS 选择器或拦截的网络响应，从动态单页应用中提取特定字段。此外还提供针对热门目标的预置站点模板。
+- **截图** —— 捕获整页 PNG 截图，或通过 CSS 选择器截取单个元素。
+- **远程 CDP** —— 创建专属 Chromium 会话，通过 Chrome DevTools Protocol 连接 Playwright 或 Puppeteer，实现脚本化的多步浏览器自动化。
+- **云浏览器（Cloud Browsers）** —— 使用你自己的代理和 Cookie 启动持久化浏览器配置，在交互式查看器中实时浏览、停止会话，并在下次运行时复用已保存的配置。
+
+## 文档导览
+
+<CardGroup cols={2}>
+  <Card title="快速开始" icon="rocket" href="/zh/quickstart">
+    创建账户，获取 API 密钥，并在数分钟内发出第一个请求。
+  </Card>
+
+  <Card title="身份验证" icon="key" href="/zh/authentication">
+    了解如何传递 API 密钥，以及会话令牌和数据令牌的使用方式。
+  </Card>
+
+  <Card title="浏览器任务" icon="browser" href="/zh/concepts/browser-tasks">
+    HTML 提取、结构化数据和截图，全部为同步执行并通过代理转发。
+  </Card>
+
+  <Card title="远程 CDP" icon="plug" href="/zh/concepts/remote-cdp">
+    通过 CDP 将 Playwright 或 Puppeteer 连接到远程浏览器，实现完整自动化。
+  </Card>
+
+  <Card title="云浏览器" icon="cloud" href="/zh/concepts/cloud-browsers">
+    持久化配置、实时查看器、按会话代理和可复用状态。
+  </Card>
+
+  <Card title="API 参考" icon="code" href="/zh/api-reference/html">
+    完整的接口参考，包含请求和响应的结构定义。
+  </Card>
+</CardGroup>
+
+## 工作流程
+
+无论你使用哪个 API，每个 AdsCrawl 请求都遵循相同的模式：
+
+1. **发送请求** —— 你的服务器发送 HTTP 请求，携带 API 密钥和目标 URL（以及可选参数，如 `waitUntil`、`contentMode` 或 `countryCode`）。
+2. **浏览器渲染页面** —— AdsCrawl 启动一个 Chromium 实例，通过住宅代理路由流量，注入你指定的 Cookie 或指纹设置，并等待页面达到你请求的加载状态。
+3. **获取数据** —— 渲染后的 HTML、Markdown、JSON、PNG 图像或 CDP 会话 URL 直接通过 HTTP 响应返回。同步 API 无需轮询或 webhook 步骤。
+
+对于需要保持状态的工作流（例如脚本化导航、表单提交、多步登录流程），请使用远程 CDP 或云浏览器 API，它们可以在多个请求之间保持浏览器活跃。
+
+<Note>
+  住宅代理已内置于每个请求中。你可以通过特定的两位字母国家代码路由流量，使用 `GLOBAL` 在 15 个热门区域中动态选择，或提供你自己的自定义代理。无需额外订阅代理服务。
+</Note>

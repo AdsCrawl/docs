@@ -1,0 +1,320 @@
+---
+title: "POST /screenshot — Capture a Page or Element as PNG"
+sidebarTitle: "POST /screenshot"
+description: "Render any URL in a real browser and return a full-page or element-scoped PNG screenshot, routed through residential proxies with fingerprint spoofing."
+---
+
+Use `POST /screenshot` to capture a pixel-perfect PNG of any public webpage. Request a full-page capture or target a specific element with a CSS selector — all rendered in a real browser with randomised fingerprints and residential proxy routing so you see exactly what a real visitor sees.
+
+## Endpoint
+
+```
+POST https://api.adscrawl.net/screenshot
+```
+
+## Authentication
+
+Every request must include your API key in the `x-api-key` header. Generate keys from the [dashboard](https://app.adscrawl.net/dashboard/).
+
+| Header | Type | Description |
+|---|---|---|
+| `x-api-key` | `string` **Required** | Full API key created in the dashboard. |
+| `content-type` | `string` **Required** | Must be `application/json`. |
+
+## Request body
+
+<ParamField body="url" type="string" required>
+  Target page URL. Must be a reachable HTTP(S) URL using port 80 or 443.
+</ParamField>
+
+<ParamField body="viewport" type="object">
+  Viewport dimensions used when rendering and capturing the page.
+
+  <Expandable title="viewport fields">
+    <ParamField body="width" type="number">Viewport width in pixels.</ParamField>
+    <ParamField body="height" type="number">Viewport height in pixels.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="fullPage" type="boolean">
+  Whether to capture the full scrollable page. Defaults to `true`. When `selector` is provided, only the matched element is captured regardless of this value.
+</ParamField>
+
+<ParamField body="selector" type="string">
+  CSS selector for the element to capture. Only the first matching element is screenshotted. Returns `422 CONTENT_SELECTOR_NOT_FOUND` if the selector is not found on the page.
+</ParamField>
+
+<ParamField body="waitUntil" type="string">
+  Navigation event to wait for before capturing. Defaults to `"load"`.
+
+  | Value | Behaviour |
+  |---|---|
+  | `"domcontentloaded"` | Waits for DOMContentLoaded. HTML is parsed without waiting for secondary resources such as images. |
+  | `"load"` | Waits for `window.load` after the page and dependent resources (images, stylesheets) finish loading. |
+  | `"networkidle"` | Waits until there are no network connections for at least 500 ms. Long polling, analytics, or lazy-loaded resources may cause a timeout. |
+</ParamField>
+
+<ParamField body="timeoutMs" type="number">
+  Maximum time to wait for the task to complete, in milliseconds. Must be a positive integer no greater than `3,600,000`. Values outside this range fall back to the server default.
+</ParamField>
+
+<ParamField body="locale" type="string">
+  Browser locale, for example `"en-US"` or `"zh-CN"`. Affects `navigator.language` and `Accept-Language` headers.
+</ParamField>
+
+<ParamField body="timezoneId" type="string">
+  IANA timezone identifier, for example `"Asia/Shanghai"` or `"America/New_York"`.
+</ParamField>
+
+<ParamField body="geolocation" type="object">
+  Geolocation coordinates exposed to the page via the Geolocation API.
+
+  <Expandable title="geolocation fields">
+    <ParamField body="latitude" type="number">Latitude in decimal degrees.</ParamField>
+    <ParamField body="longitude" type="number">Longitude in decimal degrees.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="proxy" type="object">
+  Custom proxy configuration. Cannot be combined with `countryCode`. Provide either `server` or the split form (`protocol` + `host` + `port`). Credentials must not be embedded in `server`.
+
+  <Expandable title="proxy fields">
+    <ParamField body="server" type="string">Full proxy URL such as `http://host:port` or `socks5://host:port`. Cannot be combined with `host`.</ParamField>
+    <ParamField body="protocol" type="string">`"http"` or `"socks5"`. Used in the split form.</ParamField>
+    <ParamField body="host" type="string">Proxy host. Used in the split form.</ParamField>
+    <ParamField body="port" type="number | string">Port from 1 to 65535.</ParamField>
+    <ParamField body="username" type="string">Proxy username. Must be supplied together with `password`.</ParamField>
+    <ParamField body="password" type="string">Proxy password. Must be supplied together with `username`.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="countryCode" type="string">
+  Managed residential proxy region. Cannot be combined with `proxy`.
+
+  - `"GLOBAL"` — dynamic exit from 15 popular regions.
+  - Two-letter country code (e.g. `"US"`, `"DE"`) — prefers a trusted proxy for that region with dynamic fallback.
+  - Omitted — a random trusted proxy is selected automatically.
+</ParamField>
+
+<ParamField body="userAgentMode" type="string">
+  `"random"` lets the server pick a User-Agent from its library. Requests without an explicit `userAgent` already default to `"random"`.
+</ParamField>
+
+<ParamField body="userAgentOs" type="string">
+  Operating system used when `userAgentMode` is `"random"`. Accepted values: `"windows"` (default) or `"macos"`.
+</ParamField>
+
+<ParamField body="userAgent" type="string">
+  Explicit User-Agent string. Overrides the random selection.
+</ParamField>
+
+<ParamField body="fingerprint" type="object">
+  Browser fingerprint settings. When omitted, every signal defaults to random while keeping OS, GPU, CPU, memory, fonts, and device signals coherent.
+
+  <Expandable title="fingerprint fields">
+    <ParamField body="webRtc" type="string">`"forward"` uses the proxy exit address. `"real"` or `"disabled"` also accepted.</ParamField>
+    <ParamField body="webGl" type="string">`"random"` or `"real"`. Controls WebGL vendor and renderer metadata.</ParamField>
+    <ParamField body="webGpu" type="string">`"random"`, `"real"`, or `"disabled"`. Random mode follows the WebGL GPU setting.</ParamField>
+    <ParamField body="webGlImage" type="string">`"random"` or `"real"`. Controls WebGL image noise.</ParamField>
+    <ParamField body="canvas" type="string">`"random"` or `"real"`. Controls canvas noise.</ParamField>
+    <ParamField body="audioContext" type="string">`"random"` or `"real"`. Controls audio fingerprint noise.</ParamField>
+    <ParamField body="clientRects" type="string">`"random"` or `"real"`. Controls layout measurement noise.</ParamField>
+    <ParamField body="speechVoices" type="string">`"random"` or `"real"`. Returns an OS-matched speech voice list.</ParamField>
+    <ParamField body="fonts" type="string">`"random"` or `"real"`. Returns an OS-matched font list.</ParamField>
+    <ParamField body="hardware" type="string">`"random"` or `"real"`. Generates a coherent CPU thread count and memory pair.</ParamField>
+    <ParamField body="doNotTrack" type="string">`"random"`, `"enabled"`, or `"disabled"`.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="cookies" type="array">
+  Cookie list injected into the browser context before navigation. Each cookie object requires `name`, `value`, and `domain`.
+
+  <Expandable title="cookie fields">
+    <ParamField body="name" type="string" required>Cookie name.</ParamField>
+    <ParamField body="value" type="string" required>Cookie value.</ParamField>
+    <ParamField body="domain" type="string" required>Target domain such as `.example.com`.</ParamField>
+    <ParamField body="path" type="string">Cookie path. Defaults to `/`.</ParamField>
+    <ParamField body="secure" type="boolean">Whether the cookie is sent only over HTTPS.</ParamField>
+    <ParamField body="httpOnly" type="boolean">Whether the cookie is inaccessible to client-side JavaScript.</ParamField>
+    <ParamField body="sameSite" type="string">SameSite attribute.</ParamField>
+    <ParamField body="session" type="boolean">Set `true` for a session cookie.</ParamField>
+    <ParamField body="expirationDate" type="number">Unix expiry timestamp in seconds. Also accepted as `expires` or `expiry`.</ParamField>
+  </Expandable>
+</ParamField>
+
+## Responses
+
+| Code | Content-Type | Description |
+|---|---|---|
+| `200` | `image/png` | PNG binary stream of the captured page or element. |
+| `400` | `application/json` | Invalid JSON, URL, cookies, proxy, region, or User-Agent parameters. Bodies over 1 MiB are also rejected. |
+| `401` | `application/json` | Missing or invalid `x-api-key`. |
+| `402` | `application/json` | Insufficient balance. Returns `INSUFFICIENT_CREDITS`, `balance`, and `requiredCredits`. |
+| `422` | `application/json` | Selector not found (`CONTENT_SELECTOR_NOT_FOUND`) or invalid Worker payload. |
+| `429` | `application/json` | Task rate limited. |
+| `502` | `application/json` | Proxy unreachable, target HTTP failure, or oversized result. |
+| `503` | `application/json` | Queue, Worker, managed proxy, or User-Agent resources unavailable. |
+| `504` | `application/json` | Task, navigation, or proxy connection timed out. |
+| `500` | `application/json` | Unclassified task execution failure. |
+
+<Note>
+  When using `selector`, the server waits for the element to appear before capturing it. If the element is not found within the navigation timeout, the response is `422 CONTENT_SELECTOR_NOT_FOUND`.
+</Note>
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL — full page
+curl -sS -X POST "https://api.adscrawl.net/screenshot" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "viewport": { "width": 1440, "height": 900 },
+    "fullPage": true,
+    "waitUntil": "load",
+    "countryCode": "GLOBAL",
+    "userAgentMode": "random",
+    "userAgentOs": "windows"
+  }' \
+  --output page.png
+```
+
+```bash cURL — element screenshot
+curl -sS -X POST "https://api.adscrawl.net/screenshot" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "selector": "#hero",
+    "waitUntil": "load",
+    "countryCode": "US"
+  }' \
+  --output hero.png
+```
+
+</CodeGroup>
+
+<CodeGroup>
+
+```javascript JavaScript
+import fs from "fs";
+
+const response = await fetch("https://api.adscrawl.net/screenshot", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-api-key": "YOUR_API_KEY",
+  },
+  body: JSON.stringify({
+    url: "https://example.com",
+    viewport: { width: 1440, height: 900 },
+    fullPage: true,
+    waitUntil: "load",
+    countryCode: "GLOBAL",
+    userAgentMode: "random",
+    userAgentOs: "windows",
+  }),
+});
+
+if (!response.ok) {
+  const err = await response.json();
+  throw new Error(`${response.status} ${err.code}: ${err.error}`);
+}
+
+const buffer = Buffer.from(await response.arrayBuffer());
+fs.writeFileSync("page.png", buffer);
+```
+
+```python Python
+import httpx
+
+response = httpx.post(
+    "https://api.adscrawl.net/screenshot",
+    headers={
+        "content-type": "application/json",
+        "x-api-key": "YOUR_API_KEY",
+    },
+    json={
+        "url": "https://example.com",
+        "viewport": {"width": 1440, "height": 900},
+        "fullPage": True,
+        "waitUntil": "load",
+        "countryCode": "GLOBAL",
+        "userAgentMode": "random",
+        "userAgentOs": "windows",
+    },
+)
+
+response.raise_for_status()
+with open("page.png", "wb") as f:
+    f.write(response.content)
+```
+
+</CodeGroup>
+
+## Response examples
+
+<Tabs>
+  <Tab title="200 image/png">
+    ```text
+    HTTP/1.1 200 OK
+    Content-Type: image/png
+
+    <binary PNG stream>
+    ```
+  </Tab>
+  <Tab title="422 Selector not found">
+    ```json
+    {
+      "error": "Content selector was not found",
+      "code": "CONTENT_SELECTOR_NOT_FOUND"
+    }
+    ```
+  </Tab>
+  <Tab title="402 Insufficient credits">
+    ```json
+    {
+      "error": "Insufficient credits",
+      "code": "INSUFFICIENT_CREDITS",
+      "balance": 0,
+      "requiredCredits": 1
+    }
+    ```
+  </Tab>
+  <Tab title="400 Bad country code">
+    ```json
+    {
+      "error": "countryCode is not supported",
+      "code": "INVALID_COUNTRY_CODE"
+    }
+    ```
+  </Tab>
+  <Tab title="503 Proxy unavailable">
+    ```json
+    {
+      "error": "Dynamic country/region routing is unavailable",
+      "code": "DYNAMIC_PROXY_NOT_CONFIGURED"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error reference
+
+| Code | Error code | Cause |
+|---|---|---|
+| `400` | `INVALID_COUNTRY_CODE` | The `countryCode` value is not recognised. |
+| `401` | — | `x-api-key` is missing or invalid. |
+| `402` | `INSUFFICIENT_CREDITS` | Account balance too low. Check `balance` and `requiredCredits` in the response body. |
+| `422` | `CONTENT_SELECTOR_NOT_FOUND` | The CSS `selector` did not match any element on the page. |
+| `429` | — | Request rate limit reached. Back off and retry. |
+| `502` | — | Proxy unreachable or the target server returned an error. |
+| `503` | `DYNAMIC_PROXY_NOT_CONFIGURED` | Managed proxy routing is temporarily unavailable. |
+| `504` | — | Navigation or proxy connection timed out. Increase `timeoutMs` or try again. |
+| `500` | — | Unclassified internal error. |
+
+<Note>
+  One credit is consumed after request validation but before the task is enqueued. Request bodies are limited to 1 MiB.
+</Note>

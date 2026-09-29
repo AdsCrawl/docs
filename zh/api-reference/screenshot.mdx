@@ -1,0 +1,405 @@
+---
+title: "POST /screenshot — 将页面或元素捕获为 PNG"
+sidebarTitle: "POST /screenshot"
+description: "在真实浏览器中渲染任意 URL，返回整页或限定元素的 PNG 截图，通过住宅代理和指纹伪装进行路由。"
+---
+
+使用 `POST /screenshot` 捕获任意公开网页的像素级 PNG 截图。可请求整页截图，或使用 CSS 选择器定位特定元素。所有内容均在真实浏览器中渲染，配合随机指纹和住宅代理路由，确保你看到的内容与真实访客完全一致。
+
+## Endpoint
+
+```text
+POST https://api.adscrawl.net/screenshot
+```
+
+## Authentication
+
+每个请求都必须在 `x-api-key` header 中包含你的 API 密钥。请在 [控制台](https://app.adscrawl.net/dashboard/) 中生成密钥。
+
+| Header | Type | Description |
+| --- | --- | --- |
+| `x-api-key` | `string` **Required** | 在控制台中创建的完整 API 密钥。 |
+| `content-type` | `string` **Required** | 必须为 `application/json`。 |
+
+## Request body
+
+<ParamField body="url" type="string" required>
+  目标页面 URL。必须是可通过 HTTP(S) 访问的 URL，使用 80 或 443 端口。
+</ParamField>
+
+<ParamField body="viewport" type="object">
+  渲染和捕获时使用的视口尺寸。
+
+  <Expandable title="viewport 字段">
+    <ParamField body="width" type="number">
+      视口宽度，单位为像素。
+    </ParamField>
+
+    <ParamField body="height" type="number">
+      视口高度，单位为像素。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="fullPage" type="boolean">
+  是否捕获完整可滚动页面。默认值为 `true`。当提供了 `selector` 时，无论此值如何，仅捕获匹配的元素。
+</ParamField>
+
+<ParamField body="selector" type="string">
+  要捕获的元素的 CSS 选择器。仅对第一个匹配的元素进行截图。如果页面上未找到该选择器，则返回 `422 CONTENT_SELECTOR_NOT_FOUND`。
+</ParamField>
+
+<ParamField body="waitUntil" type="string">
+  在捕获前等待的导航事件。默认值为 `"load"`。
+
+  | Value | Behaviour |
+  | --- | --- |
+  | `"domcontentloaded"` | 等待 DOMContentLoaded。HTML 已解析，无需等待图片等次要资源。 |
+  | `"load"` | 等待页面和依赖资源（图片、样式表）加载完成后的 `window.load`。 |
+  | `"networkidle"` | 等待至少 500 毫秒内没有任何网络连接。长轮询、分析脚本或懒加载资源可能导致超时。 |
+</ParamField>
+
+<ParamField body="timeoutMs" type="number">
+  任务完成的最长等待时间，单位为毫秒。必须是正整数且不超过 `3,600,000`。超出范围的值将回退为服务器默认值。
+</ParamField>
+
+<ParamField body="locale" type="string">
+  浏览器语言环境，例如 `"en-US"` 或 `"zh-CN"`。会影响 `navigator.language` 和 `Accept-Language` header。
+</ParamField>
+
+<ParamField body="timezoneId" type="string">
+  IANA 时区标识符，例如 `"Asia/Shanghai"` 或 `"America/New_York"`。
+</ParamField>
+
+<ParamField body="geolocation" type="object">
+  通过 Geolocation API 暴露给页面的地理位置坐标。
+
+  <Expandable title="geolocation 字段">
+    <ParamField body="latitude" type="number">
+      纬度，以十进制度数表示。
+    </ParamField>
+
+    <ParamField body="longitude" type="number">
+      经度，以十进制度数表示。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="proxy" type="object">
+  自定义代理配置。不能与 `countryCode` 同时使用。提供 `server` 或拆分形式（`protocol` + `host` + `port`）。不能将凭据嵌入 `server` 中。
+
+  <Expandable title="proxy 字段">
+    <ParamField body="server" type="string">
+      完整的代理 URL，如 `http://host:port` 或 `socks5://host:port`。不能与 `host` 同时使用。
+    </ParamField>
+
+    <ParamField body="protocol" type="string">
+      `"http"` 或 `"socks5"`。用于拆分形式。
+    </ParamField>
+
+    <ParamField body="host" type="string">
+      代理主机。用于拆分形式。
+    </ParamField>
+
+    <ParamField body="port" type="number | string">
+      端口，范围为 1 到 65535。
+    </ParamField>
+
+    <ParamField body="username" type="string">
+      代理用户名。必须与 `password` 一起提供。
+    </ParamField>
+
+    <ParamField body="password" type="string">
+      代理密码。必须与 `username` 一起提供。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="countryCode" type="string">
+  管理的住宅代理区域。不能与 `proxy` 同时使用。
+
+  - `"GLOBAL"` — 从 15 个热门区域中动态选择出口。
+  - 两位字母国家代码（例如 `"US"`、`"DE"`）— 优先使用该区域的受信任代理，并支持动态回退。
+  - 省略 — 自动随机选择受信任代理。
+</ParamField>
+
+<ParamField body="userAgentMode" type="string">
+  `"random"` 让服务器从其库中选择 User-Agent。未显式提供 `userAgent` 的请求已默认使用 `"random"`。
+</ParamField>
+
+<ParamField body="userAgentOs" type="string">
+  当 `userAgentMode` 为 `"random"` 时使用的操作系统。可选值：`"windows"`（默认）或 `"macos"`。
+</ParamField>
+
+<ParamField body="userAgent" type="string">
+  显式指定 User-Agent 字符串。覆盖随机选择。
+</ParamField>
+
+<ParamField body="fingerprint" type="object">
+  浏览器指纹设置。省略时，所有信号默认随机，同时保持操作系统、GPU、CPU、内存、字体和设备信号的一致性。
+
+  <Expandable title="fingerprint 字段">
+    <ParamField body="webRtc" type="string">
+      `"forward"` 使用代理出口地址。也可使用 `"real"` 或 `"disabled"`。
+    </ParamField>
+
+    <ParamField body="webGl" type="string">
+      `"random"` 或 `"real"`。控制 WebGL 厂商和渲染器元数据。
+    </ParamField>
+
+    <ParamField body="webGpu" type="string">
+      `"random"`、`"real"` 或 `"disabled"`。随机模式遵循 WebGL GPU 设置。
+    </ParamField>
+
+    <ParamField body="webGlImage" type="string">
+      `"random"` 或 `"real"`。控制 WebGL 图像噪声。
+    </ParamField>
+
+    <ParamField body="canvas" type="string">
+      `"random"` 或 `"real"`。控制 canvas 噪声。
+    </ParamField>
+
+    <ParamField body="audioContext" type="string">
+      `"random"` 或 `"real"`。控制音频指纹噪声。
+    </ParamField>
+
+    <ParamField body="clientRects" type="string">
+      `"random"` 或 `"real"`。控制布局测量噪声。
+    </ParamField>
+
+    <ParamField body="speechVoices" type="string">
+      `"random"` 或 `"real"`。返回与操作系统匹配的语音列表。
+    </ParamField>
+
+    <ParamField body="fonts" type="string">
+      `"random"` 或 `"real"`。返回与操作系统匹配的字体列表。
+    </ParamField>
+
+    <ParamField body="hardware" type="string">
+      `"random"` 或 `"real"`。生成一致的 CPU 线程数和内存配对。
+    </ParamField>
+
+    <ParamField body="doNotTrack" type="string">
+      `"random"`、`"enabled"` 或 `"disabled"`。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="cookies" type="array">
+  在导航前注入浏览器上下文的 Cookie 列表。每个 Cookie 对象需要 `name`、`value` 和 `domain`。
+
+  <Expandable title="cookie 字段">
+    <ParamField body="name" type="string" required>
+      Cookie 名称。
+    </ParamField>
+
+    <ParamField body="value" type="string" required>
+      Cookie 值。
+    </ParamField>
+
+    <ParamField body="domain" type="string" required>
+      目标域名，如 `.example.com`。
+    </ParamField>
+
+    <ParamField body="path" type="string">
+      Cookie 路径。默认值为 `/`。
+    </ParamField>
+
+    <ParamField body="secure" type="boolean">
+      是否仅通过 HTTPS 发送 Cookie。
+    </ParamField>
+
+    <ParamField body="httpOnly" type="boolean">
+      是否禁止客户端 JavaScript 访问 Cookie。
+    </ParamField>
+
+    <ParamField body="sameSite" type="string">
+      SameSite 属性。
+    </ParamField>
+
+    <ParamField body="session" type="boolean">
+      设置为 `true` 表示会话 Cookie。
+    </ParamField>
+
+    <ParamField body="expirationDate" type="number">
+      Unix 过期时间戳，单位为秒。也接受 `expires` 或 `expiry`。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Responses
+
+| Code | Content-Type | Description |
+| --- | --- | --- |
+| `200` | `image/png` | 捕获页面或元素的 PNG 二进制流。 |
+| `400` | `application/json` | JSON、URL、Cookie、代理、区域或 User-Agent 参数无效。请求体超过 1 MiB 也会被拒绝。 |
+| `401` | `application/json` | `x-api-key` 缺失或无效。 |
+| `402` | `application/json` | 余额不足。返回 `INSUFFICIENT_CREDITS`、`balance` 和 `requiredCredits`。 |
+| `422` | `application/json` | 未找到选择器（`CONTENT_SELECTOR_NOT_FOUND`）或 Worker payload 无效。 |
+| `429` | `application/json` | 任务请求频率受限。 |
+| `502` | `application/json` | 代理不可达、目标 HTTP 失败或结果过大。 |
+| `503` | `application/json` | 队列、Worker、管理代理或 User-Agent 资源不可用。 |
+| `504` | `application/json` | 任务、导航或代理连接超时。 |
+| `500` | `application/json` | 未分类的任务执行失败。 |
+
+<Note>
+  当使用 `selector` 时，服务器会等待元素出现后再进行捕获。如果元素在导航超时内未找到，则返回 `422 CONTENT_SELECTOR_NOT_FOUND`。
+</Note>
+
+## Code examples
+
+<CodeGroup>
+
+```bash cURL — full page
+curl -sS -X POST "https://api.adscrawl.net/screenshot" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "viewport": { "width": 1440, "height": 900 },
+    "fullPage": true,
+    "waitUntil": "load",
+    "countryCode": "GLOBAL",
+    "userAgentMode": "random",
+    "userAgentOs": "windows"
+  }' \
+  --output page.png
+```
+
+```bash cURL — element screenshot
+curl -sS -X POST "https://api.adscrawl.net/screenshot" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "selector": "#hero",
+    "waitUntil": "load",
+    "countryCode": "US"
+  }' \
+  --output hero.png
+```
+
+</CodeGroup>
+
+<CodeGroup>
+
+```javascript JavaScript
+import fs from "fs";
+
+const response = await fetch("https://api.adscrawl.net/screenshot", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-api-key": "YOUR_API_KEY",
+  },
+  body: JSON.stringify({
+    url: "https://example.com",
+    viewport: { width: 1440, height: 900 },
+    fullPage: true,
+    waitUntil: "load",
+    countryCode: "GLOBAL",
+    userAgentMode: "random",
+    userAgentOs: "windows",
+  }),
+});
+
+if (!response.ok) {
+  const err = await response.json();
+  throw new Error(`${response.status} ${err.code}: ${err.error}`);
+}
+
+const buffer = Buffer.from(await response.arrayBuffer());
+fs.writeFileSync("page.png", buffer);
+```
+
+```python Python
+import httpx
+
+response = httpx.post(
+    "https://api.adscrawl.net/screenshot",
+    headers={
+        "content-type": "application/json",
+        "x-api-key": "YOUR_API_KEY",
+    },
+    json={
+        "url": "https://example.com",
+        "viewport": {"width": 1440, "height": 900},
+        "fullPage": True,
+        "waitUntil": "load",
+        "countryCode": "GLOBAL",
+        "userAgentMode": "random",
+        "userAgentOs": "windows",
+    },
+)
+
+response.raise_for_status()
+with open("page.png", "wb") as f:
+    f.write(response.content)
+```
+
+</CodeGroup>
+
+## Response examples
+
+<Tabs>
+  <Tab title="200 image/png">
+    ```text
+    HTTP/1.1 200 OK
+    Content-Type: image/png
+    
+    <binary PNG stream>
+    ```
+  </Tab>
+  <Tab title="422 Selector not found">
+    ```json
+    {
+      "error": "Content selector was not found",
+      "code": "CONTENT_SELECTOR_NOT_FOUND"
+    }
+    ```
+  </Tab>
+  <Tab title="402 Insufficient credits">
+    ```json
+    {
+      "error": "Insufficient credits",
+      "code": "INSUFFICIENT_CREDITS",
+      "balance": 0,
+      "requiredCredits": 1
+    }
+    ```
+  </Tab>
+  <Tab title="400 Bad country code">
+    ```json
+    {
+      "error": "countryCode is not supported",
+      "code": "INVALID_COUNTRY_CODE"
+    }
+    ```
+  </Tab>
+  <Tab title="503 Proxy unavailable">
+    ```json
+    {
+      "error": "Dynamic country/region routing is unavailable",
+      "code": "DYNAMIC_PROXY_NOT_CONFIGURED"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error reference
+
+| Code | Error code | Cause |
+| --- | --- | --- |
+| `400` | `INVALID_COUNTRY_CODE` | `countryCode` 值未被识别。 |
+| `401` | — | `x-api-key` 缺失或无效。 |
+| `402` | `INSUFFICIENT_CREDITS` | 账户余额过低。请检查响应体中的 `balance` 和 `requiredCredits`。 |
+| `422` | `CONTENT_SELECTOR_NOT_FOUND` | CSS `selector` 未匹配页面上的任何元素。 |
+| `429` | — | 请求频率限制已达到。请退避后重试。 |
+| `502` | — | 代理不可达或目标服务器返回错误。 |
+| `503` | `DYNAMIC_PROXY_NOT_CONFIGURED` | 管理代理路由暂时不可用。 |
+| `504` | — | 导航或代理连接超时。请增加 `timeoutMs` 或稍后重试。 |
+| `500` | — | 未分类的内部错误。 |
+
+<Note>
+  一次请求验证后会消耗 1 积分，在任务入队之前扣除。请求体限制为 1 MiB。
+</Note>

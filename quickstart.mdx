@@ -1,0 +1,168 @@
+---
+title: "Quick Start: Make Your First AdsCrawl API Request Today"
+sidebarTitle: "Quick Start"
+description: "Create a free AdsCrawl account, grab your API key from the dashboard, and make your first rendered HTML or Markdown request in under five minutes."
+---
+
+AdsCrawl is designed to be usable from your first request. This guide walks you from account creation to a working API call — no configuration files, no infrastructure setup, and no proxy accounts to manage separately. By the end, you'll have a rendered page response in your terminal and a clear path to whichever API fits your use case.
+
+<Steps>
+  <Step title="Create a free account">
+    Go to [app.adscrawl.net/register](https://app.adscrawl.net/register/) and sign up. The Free plan gives you 500 credits with no credit card required — enough to explore HTML extraction, screenshots, and short CDP sessions.
+  </Step>
+
+  <Step title="Copy your API key">
+    After signing in, open the [AdsCrawl dashboard](https://app.adscrawl.net/dashboard/) and copy your API key. Store it as an environment variable on your server or in a secret manager.
+
+    ```bash
+    export ADSCRAWL_API_KEY="your-api-key"
+    ```
+
+    <Warning>
+      Never paste your API key into client-side JavaScript, commit it to source control, or include it in a public URL. Keep it on your server only.
+    </Warning>
+  </Step>
+
+  <Step title="Make your first request">
+    Use `POST /html` to fetch a rendered page. This endpoint is synchronous — AdsCrawl launches a real browser, loads the URL, and streams the result back in the HTTP response.
+
+    Set `contentMode` to control what you get back:
+    - `"html"` — full rendered page HTML (default)
+    - `"markdown"` — clean, readable Markdown extracted by the Readability parser
+    - `"json"` — structured article object with title, byline, excerpt, and body
+
+    <CodeGroup>
+      ```bash cURL
+      export ADSCRAWL_API_KEY="your-api-key"
+
+      curl --fail-with-body -sS -X POST "https://api.adscrawl.net/html" \
+        -H "content-type: application/json" \
+        -H "x-api-key: $ADSCRAWL_API_KEY" \
+        -d '{
+          "url": "https://example.com/article",
+          "contentMode": "markdown",
+          "waitUntil": "domcontentloaded"
+        }'
+      ```
+
+      ```javascript JavaScript (fetch)
+      const response = await fetch("https://api.adscrawl.net/html", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": process.env.ADSCRAWL_API_KEY,
+        },
+        body: JSON.stringify({
+          url: "https://example.com/article",
+          contentMode: "markdown",
+          waitUntil: "domcontentloaded",
+        }),
+      });
+
+      const markdown = await response.text();
+      console.log(markdown);
+      ```
+
+      ```python Python
+      import os
+      import requests
+
+      response = requests.post(
+          "https://api.adscrawl.net/html",
+          headers={
+              "content-type": "application/json",
+              "x-api-key": os.environ["ADSCRAWL_API_KEY"],
+          },
+          json={
+              "url": "https://example.com/article",
+              "contentMode": "markdown",
+              "waitUntil": "domcontentloaded",
+          },
+      )
+
+      print(response.text)
+      ```
+    </CodeGroup>
+
+    Use `"waitUntil": "domcontentloaded"` for most HTML and Markdown extraction — it's faster and avoids waiting on analytics or lazy-loaded resources. Switch to `"load"` or `"networkidle"` when the content you need depends on secondary resources or deferred JavaScript.
+  </Step>
+
+  <Step title="Check the response">
+    A successful request returns HTTP `200`. The response body depends on `contentMode`:
+
+    <Tabs>
+      <Tab title="markdown (text/markdown)">
+        ```markdown
+        # Example Article
+
+        Readable body content extracted from the page.
+
+        - Key point one
+        - Key point two
+        ```
+      </Tab>
+      <Tab title="json (application/json)">
+        ```json
+        {
+          "title": "Example Article",
+          "byline": "Jane Smith",
+          "excerpt": "A concise summary of the article.",
+          "siteName": "Example",
+          "lang": "en",
+          "dir": null,
+          "content": "<div><p>Readable body...</p></div>",
+          "textContent": "Readable body...",
+          "length": 2487,
+          "publishedTime": null
+        }
+        ```
+      </Tab>
+      <Tab title="html (text/html)">
+        ```html
+        <!DOCTYPE html>
+        <html lang="en">
+          <head><title>Example Article</title></head>
+          <body>
+            <!-- Full rendered page HTML -->
+          </body>
+        </html>
+        ```
+      </Tab>
+    </Tabs>
+
+    If you receive a `402`, your account is out of credits — check your balance in the dashboard. A `401` means the API key is missing or incorrect.
+  </Step>
+</Steps>
+
+## What to explore next
+
+AdsCrawl has five APIs. Start with the one that fits your workflow:
+
+<CardGroup cols={2}>
+  <Card title="Browser Tasks" icon="browser" href="/concepts/browser-tasks">
+    HTML, Markdown, JSON, screenshots, and structured field extraction from SPAs.
+  </Card>
+  <Card title="Remote CDP" icon="plug" href="/concepts/remote-cdp">
+    Connect Playwright or Puppeteer to a remote browser for scripted automation.
+  </Card>
+  <Card title="Cloud Browsers" icon="cloud" href="/concepts/cloud-browsers">
+    Persistent browser profiles with a live viewer, saved cookies, and reusable state.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/html">
+    Complete request and response schemas for every endpoint.
+  </Card>
+</CardGroup>
+
+<Tip>
+  If you'd prefer to let your coding agent handle setup, paste this prompt into your agent:
+
+  ```text
+  Set up AdsCrawl in this codebase. Use https://api.adscrawl.net/auth.md to help me
+  create an account and authorize an API key, then follow
+  https://api.adscrawl.net/docs/agent-quickstart.md to complete the integration.
+  ```
+
+  The agent will walk you through sign-up and integration. You approve the API key request in your browser.
+</Tip>
+
+Once you've made your first successful request, read the [Authentication](/authentication) page to understand the full credential model — especially if you plan to use Cloud Browsers or CDP sessions.

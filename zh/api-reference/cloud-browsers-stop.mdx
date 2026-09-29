@@ -1,0 +1,160 @@
+---
+title: "停止云浏览器 — POST /cloud-browsers/:id/stop"
+sidebarTitle: "Stop Browser"
+description: "停止正在运行的云浏览器，结束计费并释放并发运行槽位。已保存的配置保留以便将来重启。"
+---
+
+停止正在运行的云浏览器以结束计费并释放你的并发运行槽位。在交互式会话结束时调用此接口，仅关闭查看器标签页、失去连接或在 UI 中让会话过期 **不会** 停止计费。只有返回 `runtime.status: stopped` 的确认 `200` 响应才是浏览器已停止且运行槽位已释放的信号。停止后已保存的配置及其所有设置都会保留；浏览器可以随时重新启动。
+
+## 认证
+
+每次请求需包含以下之一：
+
+| 方式 | Header |
+| --- | --- |
+| API 密钥 | `x-api-key: <API_KEY>` |
+| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
+| 控制台会话 cookie | _(由浏览器自动发送)_ |
+
+## 路径参数
+
+<ParamField path="id" type="string (UUID)" required>
+  由创建或列表接口返回的持久配置标识符。此值与运行时 `sessionId` 不同。
+</ParamField>
+
+## 请求体
+
+不需要也不接受请求体。
+
+## 响应
+
+### 200 — 已停止
+
+停止已确认。运行槽位已释放。对已停止的浏览器再次调用 stop 也返回 `200` — 你不会被重复计费。
+
+<ResponseField name="ok" type="boolean">
+  始终为 `true`。
+</ResponseField>
+
+<ResponseField name="runtime" type="object">
+  <Expandable title="Runtime 字段">
+    <ResponseField name="status" type="string">
+      `200` 响应中始终为 `"stopped"`。
+    </ResponseField>
+
+    <ResponseField name="sessionId" type="string">
+      被停止会话的标识符。没有活跃会话时省略。
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  对已处于 `stopped` 状态的浏览器调用 stop 会返回 `200` 及 `runtime.status: stopped` — 运行槽位不会被重复释放，也不会产生额外费用。
+</Note>
+
+### 202 — 正在停止（进行中）
+
+另一停止操作已在进行中。浏览器仍在停止过程中，运行槽位继续保留。请通过有限重试循环轮询 `GET /cloud-browsers/{id}`，直到 `runtime.status` 变为 `stopped`。如果状态持续为 `stopping`，可定期重试 `POST /cloud-browsers/{id}/stop`。
+
+<ResponseField name="ok" type="boolean">
+  始终为 `true`。
+</ResponseField>
+
+<ResponseField name="runtime" type="object">
+  <Expandable title="Runtime 字段">
+    <ResponseField name="status" type="string">
+      `202` 响应中始终为 `"stopping"`。
+    </ResponseField>
+
+    <ResponseField name="sessionId" type="string">
+      正在停止的会话标识符。
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### 401 — Unauthenticated
+
+认证缺失、无效或已过期。
+
+### 404 — Not Found
+
+配置不存在或属于其他用户。
+
+### 409 — CDP Session Starting
+
+`CDP_SESSION_STARTING`：浏览器仍处于 `starting` 阶段。等待启动完成，然后重试停止请求。
+
+### 503 — Runtime Unavailable
+
+`CDP_WORKER_UNAVAILABLE`，或云浏览器运行时暂时不可达。短暂失联不能确认浏览器已停止；运行槽位继续保留。请检查配置状态并在恢复可达后重试停止。
+
+### 500 — Internal Error
+
+停止失败或超时 **不是** 已确认停止。浏览器可能仍处于 `stopping` 状态并继续占用运行槽位。请通过 `GET /cloud-browsers/{id}` 检查配置状态，并在服务恢复后重试停止。
+
+## 请求示例
+
+```bash cURL
+curl --fail-with-body --silent --show-error --max-time 65 \
+  -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/stop' \
+  -H 'x-api-key: <api-key>'
+```
+
+## 响应示例
+
+<CodeGroup>
+
+```json 200 Stopped
+{
+  "ok": true,
+  "runtime": {
+    "status": "stopped",
+    "sessionId": "<session-id>"
+  }
+}
+```
+
+```json 202 Still Stopping
+{
+  "ok": true,
+  "runtime": {
+    "status": "stopping",
+    "sessionId": "<session-id>"
+  }
+}
+```
+
+```json 200 Launch Profile Retained
+{
+  "ok": true,
+  "source": "launch",
+  "deleteOnStop": false,
+  "runtime": {
+    "status": "stopped",
+    "sessionId": "<session-id>"
+  }
+}
+```
+
+```json 409 Session Starting
+{
+  "error": "CDP session is starting; retry after startup completes",
+  "code": "CDP_SESSION_STARTING"
+}
+```
+
+</CodeGroup>
+
+## 重要行为
+
+<Warning>
+  **关闭查看器标签页不会停止浏览器。** 务必调用 `POST /cloud-browsers/{id}/stop` 来结束会话并停止计费。计费会按每分钟 1 积分持续，直到确认停止。
+</Warning>
+
+<Info>
+  确认停止后，**已保存的配置会保留** — 不会被删除。它继续计入你的已保存配置配额，并可以随时重启。只有通过显式的 `DELETE /cloud-browsers/{id}` 调用才会删除配置。通过 `POST /cloud-browsers/launch` 创建的配置遵循相同的保留策略：`deleteOnStop` 始终为 `false`。
+</Info>
+
+<Tip>
+  使用 **有限轮询循环** 实现可靠的停止确认。先调用 stop，如果响应是 `202`，则每 2 秒轮询一次 `GET /cloud-browsers/{id}`（最多约 30 次），直到 `runtime.status` 变为 `stopped`。创建配置文档中的 Node.js 生命周期示例展示了完整实现。
+</Tip>

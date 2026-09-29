@@ -1,0 +1,217 @@
+---
+title: "Python SDK for AdsCrawl"
+description: "Install and use the AdsCrawl Python SDK to fetch rendered content, screenshots, structured data, and remote CDP browser sessions. Python 3.9+, zero runtime dependencies."
+sidebarTitle: "Python"
+---
+
+The AdsCrawl Python SDK works with Python 3.9 and later. It provides both synchronous and asynchronous clients, uses only the Python standard library for HTTP, and has zero runtime dependencies.
+
+<Note>
+  Keep your API key in server-side code. Never expose it in client-side applications.
+</Note>
+
+## Install
+
+```bash
+pip install adscrawl
+```
+
+When you need to connect a remote browser with Playwright, install the extra:
+
+```bash
+pip install "adscrawl[playwright]"
+playwright install chromium
+```
+
+<Card title="adscrawl-python on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-python">
+  View source, runnable examples, and releases.
+</Card>
+
+## Authenticate and make your first request
+
+[Create an API key](https://app.adscrawl.net/register/?utm_source=pypi&utm_medium=sdk&utm_campaign=adscrawl-python) in the dashboard and set `ADSCRAWL_API_KEY` in your server environment. You can also pass the key explicitly to `AdsCrawl(api_key="...")`.
+
+```python
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+markdown = client.markdown({
+    "url": "https://www.adscrawl.net",
+    "waitUntil": "domcontentloaded",
+})
+print(markdown)
+```
+
+## Rendered content and screenshots
+
+```python
+from pathlib import Path
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+html = client.html({"url": "https://www.adscrawl.net"})
+article = client.article({"url": "https://www.adscrawl.net"})
+print(article["title"], article["textContent"])
+
+png = client.screenshot({
+    "url": "https://www.adscrawl.net",
+    "viewport": {"width": 1440, "height": 900},
+    "fullPage": True,
+    "waitUntil": "load",
+})
+Path("page.png").write_bytes(png)
+```
+
+`html()` returns HTML by default. `markdown()` returns Markdown, `article()` returns a dictionary, and `screenshot()` returns PNG bytes. Use a custom `proxy` or managed `countryCode`; they cannot be combined.
+
+## Proxy and fingerprint
+
+```python
+import os
+from pathlib import Path
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+server = os.getenv("ADSCRAWL_PROXY_SERVER")
+username = os.getenv("ADSCRAWL_PROXY_USERNAME")
+password = os.getenv("ADSCRAWL_PROXY_PASSWORD")
+if bool(username) != bool(password):
+    raise RuntimeError("Set both proxy username and password, or neither.")
+if not server and (username or password):
+    raise RuntimeError("Set ADSCRAWL_PROXY_SERVER with proxy credentials.")
+
+routing = {"countryCode": "GLOBAL"}
+if server:
+    proxy = {"server": server}
+    if username and password:
+        proxy.update({"username": username, "password": password})
+    routing = {"proxy": proxy}
+
+png = client.screenshot({
+    "url": "https://www.browserscan.net/",
+    **routing,
+    "viewport": {"width": 1440, "height": 900},
+    "fullPage": True,
+    "waitUntil": "networkidle",
+    "timeoutMs": 60_000,
+    "userAgentMode": "random",
+    "userAgentOs": "windows",
+    "fingerprint": {
+        "webRtc": "forward", "webGl": "random", "webGpu": "random",
+        "webGlImage": "random", "canvas": "random",
+        "audioContext": "random", "clientRects": "random",
+        "speechVoices": "random", "fonts": "random",
+        "hardware": "random", "doNotTrack": "random",
+    },
+}, timeout_ms=75_000)
+Path("browserscan.png").write_bytes(png)
+```
+
+AdsCrawl uses real browsers with configurable routing and browser fingerprints. Randomized settings are generated as a coherent profile across the operating system, GPU, hardware, fonts, and related signals. This browser workflow has been verified to access and render BrowserScan, Pixelscan, and IPhey and return screenshots.
+
+## Structured extraction
+
+```python
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+print(client.spa.templates()["templates"])
+
+result = client.spa.extract({
+    "url": "https://www.adscrawl.net",
+    "fields": {
+        "title": {"source": "dom", "selector": "h1", "value": "text", "required": True},
+    },
+})
+print(result["data"]["title"], result["missingFields"])
+
+inspection = client.spa.inspect({"url": "https://www.adscrawl.net"})
+print(inspection["candidates"])
+```
+
+A generic type argument describes the expected output but does not validate your custom data at runtime. Always check `missingFields`.
+
+## Remote CDP browsers
+
+```python
+from adscrawl import AdsCrawl
+from playwright.sync_api import sync_playwright
+
+client = AdsCrawl()
+session = client.cdp.create({
+    "idleTimeoutMs": 600_000,
+    "maxSessionMs": 3_600_000,
+    "browserSettings": {"viewport": {"width": 1440, "height": 900}},
+})
+try:
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.connect_over_cdp(session["cdpBaseUrl"])
+        context = browser.contexts[0]
+        page = context.pages[0] if context.pages else context.new_page()
+        page.goto("https://www.adscrawl.net")
+        print(page.title())
+        browser.close()
+finally:
+    client.cdp.close(session["sessionId"])
+```
+
+`cdp.list()` returns `{"ok": True, "data": [...]}`. `cdp.get_version(session)` discovers the WebSocket endpoint without forwarding the API key. Connection URLs contain secrets and should not be logged.
+
+## Persistent cloud browsers
+
+```python
+import os
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+server = os.environ["ADSCRAWL_PROXY_SERVER"]
+proxy = {"server": server}
+launched = client.cloud_browsers.launch({
+    "proxy": proxy,
+    "tabs": ["https://www.adscrawl.net"],
+})
+browser_id = launched["id"]
+try:
+    profile = client.cloud_browsers.get(browser_id)
+    print(profile["id"], profile["runtime"]["status"])
+finally:
+    client.cloud_browsers.stop(browser_id)
+```
+
+API-key starts and launches require a top-level custom `proxy` every time. A `stopping` response does not confirm shutdown; poll `get()` until `stopped`. Failed launches can expose a cleanup id as `AdsCrawlAPIError.id`.
+
+## Async client
+
+```python
+import asyncio
+from adscrawl import AsyncAdsCrawl
+
+async def main():
+    async with AsyncAdsCrawl() as client:
+        markdown = await client.markdown({"url": "https://www.adscrawl.net"})
+        print(markdown)
+
+asyncio.run(main())
+```
+
+The async facade runs the dependency-free standard-library HTTP transport in worker threads. Cancelling a coroutine or reaching a timeout does not prove remote browser work stopped.
+
+## Configuration and errors
+
+```python
+from adscrawl import AdsCrawl, AdsCrawlAPIError, AdsCrawlTimeoutError
+
+client = AdsCrawl(base_url="https://api.adscrawl.net", timeout_ms=90_000)
+try:
+    text = client.markdown(
+        {"url": "https://www.adscrawl.net", "timeoutMs": 60_000},
+        timeout_ms=75_000,
+    )
+    print(text)
+except AdsCrawlAPIError as error:
+    print(error.status, error.code, error.trace_id)
+except AdsCrawlTimeoutError:
+    print("Inspect remote sessions before retrying.")
+```
+
+The API key defaults to `ADSCRAWL_API_KEY`. The base URL defaults to `ADSCRAWL_BASE_URL`, then `ADSCRAWL_API_URL`, then `https://api.adscrawl.net`. Errors include `AdsCrawlAPIError`, `AdsCrawlTimeoutError`, `AdsCrawlConnectionError`, and `AdsCrawlResponseError`. API response bodies are credential-redacted. The HTTP deadline includes response body reading. Requests are not automatically retried.

@@ -1,0 +1,211 @@
+---
+title: "创建云浏览器配置 — POST /cloud-browsers"
+sidebarTitle: "Create Profile"
+description: "保存一个新的云浏览器配置，可选设置视口、地区语言、代理、Cookie 和指纹参数 — 无需启动浏览器会话。"
+---
+
+创建配置会保存你的浏览器设置，包括视口、地区语言、时区、代理、Cookie 和指纹，并返回一个持久的配置 `id`。此时 **不会启动浏览器，也不会消耗运行配额**。使用返回的 `id` 稍后通过 `POST /cloud-browsers/{id}/start` 启动浏览器，或用于查询、更新、删除该配置。如果你想在单次请求中创建并启动浏览器，请改用 `POST /cloud-browsers/launch`。
+
+## 认证
+
+每次请求需包含以下之一：
+
+| 方式 | Header |
+| --- | --- |
+| API 密钥 | `x-api-key: <API_KEY>` |
+| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
+| 控制台会话 cookie | _(由浏览器自动发送)_ |
+
+## 请求体
+
+请求体必须为单个 JSON 对象，最大 1 MiB。空对象 `{}` 也是有效请求。
+
+<ParamField body="remark" type="string">
+  可选的可读标签，用于标识此配置。最多 255 个 Unicode 字符（去除首尾空格后）。在列表响应和控制台中有助于识别配置。
+</ParamField>
+
+<ParamField body="browserSettings" type="object">
+  可选的浏览器保存配置。默认为 `{}`。提供时必须为对象，数组和标量会被拒绝。此处保存的代理不会替代后续 API 密钥启动请求中必需的顶层 `proxy` 字段。
+
+  <Expandable title="browserSettings 字段">
+    <ParamField body="viewport" type="object">
+      浏览器窗口尺寸：`{ width: number, height: number }`。
+    </ParamField>
+
+    <ParamField body="locale" type="string">
+      浏览器地区语言，例如 `en-US`。
+    </ParamField>
+
+    <ParamField body="timezoneId" type="string">
+      IANA 时区标识符，例如 `Asia/Shanghai`。
+    </ParamField>
+
+    <ParamField body="proxy" type="object">
+      保存到配置中的自定义代理设置。不能与 `countryCode` 同时使用。请提供 `server`（例如 `http://host:port`）或拆分形式 `protocol` + `host` + `port`。凭证不能嵌入在 URL 中，需单独提供 `username` 和 `password`。此处保存的代理 **不会** 满足在 API 密钥启动请求中发送顶层 `proxy` 的要求。
+    </ParamField>
+
+    <ParamField body="countryCode" type="string">
+      保存到配置中的托管代理地区。使用 `GLOBAL` 表示随机热门地区，或两位 ISO 国家代码例如 `FR`。不能与 `proxy` 同时使用。
+    </ParamField>
+
+    <ParamField body="cookies" type="array">
+      与配置一起加密存储的预设 Cookie，每次运行时会自动恢复。必须为数组，在 1 MiB 请求体限制内最多 10,000 条。每条 Cookie 需要 `name`、`value` 和 `domain`；`path` 默认为 `/`。
+    </ParamField>
+
+    <ParamField body="fingerprint" type="object">
+      保存到配置中的浏览器指纹设置。每个字段均为可选。支持的信号：`webRtc`（`forward` | `real` | `disabled`）、`webGl`、`webGlImage`、`canvas`、`audioContext`、`clientRects`、`speechVoices`、`fonts`、`hardware`（均为 `random` | `real`）、`webGpu`（`random` | `real` | `disabled`）、`doNotTrack`（`random` | `enabled` | `disabled`）。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## 响应
+
+### 201 — 配置已创建
+
+返回 `{ ok: true, id }`。配置立即进入 `stopped` 状态，不占用运行槽位。
+
+<ResponseField name="ok" type="boolean">
+  成功时始终为 `true`。
+</ResponseField>
+
+<ResponseField name="id" type="string (UUID)">
+  新配置的持久标识符。请保存此值，后续所有启动、停止、查询和删除调用都需要它。
+</ResponseField>
+
+<Note>
+  Free 套餐允许保存一个配置。创建额外配置前，请先通过 `GET /cloud-browsers` 查看 `limit` 了解当前配额。
+</Note>
+
+### 400 — Bad Request
+
+请求体为空、`null`、数组、标量、字段类型无效、`remark` 过长、Cookie 无效、`INVALID_PROXY`、`INVALID_COUNTRY_CODE`，或同时提供了 `proxy` 和 `countryCode`（`COUNTRY_PROXY_CONFLICT`）时返回。
+
+### 401 — Unauthenticated
+
+认证缺失、无效或已过期。
+
+### 409 — 配置数量已达上限
+
+你的已保存配置配额已满。删除现有配置或升级套餐后再创建新配置。此错误与运行配额错误（`CLOUD_BROWSER_CONCURRENCY_LIMIT`）不同。
+
+### 500 — Internal Error
+
+内部服务故障。
+
+## 请求示例
+
+<CodeGroup>
+
+```bash cURL
+curl --fail-with-body --silent --show-error --max-time 65 \
+  -X POST 'https://api.adscrawl.net/cloud-browsers' \
+  -H 'x-api-key: <api-key>' \
+  -H 'content-type: application/json' \
+  --data '{
+  "remark": "work profile",
+  "browserSettings": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  }
+}'
+```
+
+```javascript Node.js
+// Node.js 20+，保存为 .mjs。运行前替换代理占位符。
+const baseUrl = "https://api.adscrawl.net";
+const apiKey = process.env.ADSCRAWL_API_KEY;
+if (!apiKey) throw new Error("ADSCRAWL_API_KEY is required");
+
+const proxy = {
+  server: "http://proxy.example.com:8080",
+  username: "<proxy-user>",
+  password: "<proxy-password>",
+};
+
+async function request(method, path, body, timeoutMs = 65000) {
+  const res = await fetch(baseUrl + path, {
+    method,
+    headers: { "x-api-key": apiKey, "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const error = new Error(data.error || "HTTP " + res.status);
+    error.status = res.status;
+    error.code = data.code;
+    error.id = data.id;
+    throw error;
+  }
+  return data;
+}
+
+async function stopAndWait(id) {
+  const path = "/cloud-browsers/" + encodeURIComponent(id);
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      const stopped = await request("POST", path + "/stop", undefined, 10000);
+      if (stopped.runtime.status === "stopped") return;
+      const current = await request("GET", path, undefined, 10000);
+      if (current.runtime.status === "stopped") return;
+    } catch (error) {
+      if (
+        error.code !== "CDP_SESSION_STARTING" &&
+        !(error.status >= 500) &&
+        error.name !== "TimeoutError"
+      )
+        throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error(
+    "Stop unconfirmed; quota is still reserved. Retry stop for " + id
+  );
+}
+
+// 1. 保存配置 — 浏览器尚未启动。
+const { id } = await request("POST", "/cloud-browsers", {
+  remark: "work profile",
+  browserSettings: { viewport: { width: 1440, height: 900 } },
+});
+
+try {
+  // 2. 每次启动都必须提供代理，即使是现有配置。
+  await request(
+    "POST",
+    "/cloud-browsers/" + encodeURIComponent(id) + "/start",
+    { proxy }
+  );
+  const current = await request(
+    "GET",
+    "/cloud-browsers/" + encodeURIComponent(id)
+  );
+  console.log({
+    id,
+    source: current.source,
+    status: current.runtime.status,
+    connectUrl: current.runtime.connectUrl,
+  });
+  const { limit, runningLimit, runningCount } = await request(
+    "GET",
+    "/cloud-browsers"
+  );
+  console.log({ limit, runningLimit, runningCount });
+} finally {
+  await stopAndWait(id);
+}
+console.log("Stopped; the saved profile remains", id);
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json 201 Created
+{
+  "ok": true,
+  "id": "<browser-id>"
+}
+```

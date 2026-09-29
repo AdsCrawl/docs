@@ -1,0 +1,121 @@
+---
+title: "Capture Full-Page and Element Screenshots with AdsCrawl"
+sidebarTitle: "Screenshots"
+description: "Use POST /screenshot to capture a full-page or single-element PNG from any URL, with proxy routing, custom viewports, and locale support."
+---
+
+Use `POST /screenshot` to capture a PNG image of any web page without managing a browser. AdsCrawl launches a real Chromium instance, routes the request through a residential proxy, waits for the page to load, and streams the image directly back as a binary PNG response. Screenshots are useful for visual monitoring, AI-powered workflows, research archiving, and automated reporting.
+
+## Full-page screenshot
+
+Set `fullPage: true` to capture the entire scrollable page at the specified viewport width. Use `--output` with cURL to write the binary response directly to a file.
+
+```bash
+curl -sS -X POST "https://api.adscrawl.net/screenshot" \
+  -H "content-type: application/json" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "viewport": { "width": 1440, "height": 900 },
+    "fullPage": true,
+    "waitUntil": "load"
+  }' \
+  --output page.png
+```
+
+## Element screenshot
+
+Provide a `selector` to capture only the first matching element. The viewport still controls page layout — only the matched element is cropped from the rendered page.
+
+```bash
+curl -sS -X POST "https://api.adscrawl.net/screenshot" \
+  -H "content-type: application/json" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "selector": ".hero-banner",
+    "fullPage": false,
+    "waitUntil": "load"
+  }' \
+  --output banner.png
+```
+
+<Note>
+  If the `selector` you provide doesn't match any element on the page, the API returns `422 CONTENT_SELECTOR_NOT_FOUND`. Check your selector against the live rendered DOM — some elements only appear after JavaScript execution completes.
+</Note>
+
+## waitUntil options
+
+The `waitUntil` field controls when AdsCrawl considers the page ready to capture:
+
+| Value | When it fires | Use when |
+|---|---|---|
+| `load` *(default)* | After `window.load`, including images and stylesheets | You need the fully styled page |
+| `domcontentloaded` | After HTML is parsed, before secondary resources | You want speed and don't need images |
+| `networkidle` | After 500 ms with no network activity | The page makes async API calls to fill in content |
+
+<Warning>
+  `networkidle` can time out on pages with persistent connections, analytics beacons, or lazy-loaded infinite scroll content. Prefer `load` for most screenshot use cases.
+</Warning>
+
+## Tips
+
+<Tip>
+  Use `countryCode` to capture geo-specific page variants. Set `"countryCode": "US"` to see the US version of a site, or `"countryCode": "GLOBAL"` to use a randomly selected residential exit node across 15 popular regions.
+</Tip>
+
+<Tip>
+  Set `locale` and `timezoneId` together to capture localised pages accurately. For example, `"locale": "zh-CN"` and `"timezoneId": "Asia/Shanghai"` render the page as a user in China would see it.
+</Tip>
+
+## Use cases
+
+<CardGroup cols={3}>
+  <Card title="Visual monitoring" icon="eye">
+    Schedule periodic screenshots to detect layout regressions or content changes on competitor sites.
+  </Card>
+  <Card title="AI workflows" icon="robot">
+    Feed screenshots into multimodal LLMs for visual page understanding, UI audits, or content classification.
+  </Card>
+  <Card title="Research and archiving" icon="archive">
+    Capture a timestamped visual record of pages for compliance, journalism, or market research.
+  </Card>
+</CardGroup>
+
+## Full request body reference
+
+<Accordion title="All request fields">
+  <ParamField body="url" type="string" required>
+    Target page URL. Only ports 80 and 443 are supported.
+  </ParamField>
+  <ParamField body="viewport" type="object">
+    Viewport dimensions, e.g. `{ "width": 1440, "height": 900 }`. Controls page layout width; the captured height extends to the full page when `fullPage` is true.
+  </ParamField>
+  <ParamField body="fullPage" type="boolean">
+    Capture the entire scrollable page. Defaults to `true`. When `selector` is set, only the matched element is captured.
+  </ParamField>
+  <ParamField body="selector" type="string">
+    CSS selector for a single element to capture. Returns `422 CONTENT_SELECTOR_NOT_FOUND` if no element matches.
+  </ParamField>
+  <ParamField body="waitUntil" type='"load" | "domcontentloaded" | "networkidle"'>
+    Navigation wait condition. Defaults to `"load"`.
+  </ParamField>
+  <ParamField body="countryCode" type="string">
+    Managed proxy region. `"GLOBAL"` picks a dynamic exit from 15 regions. A two-letter code (e.g. `"US"`) prefers a trusted proxy. Cannot be combined with `proxy`.
+  </ParamField>
+  <ParamField body="locale" type="string">
+    Browser locale, such as `"en-US"` or `"zh-CN"`.
+  </ParamField>
+  <ParamField body="timezoneId" type="string">
+    IANA timezone ID, such as `"Asia/Shanghai"` or `"America/New_York"`.
+  </ParamField>
+  <ParamField body="cookies" type="cookies[]">
+    Cookie list injected before navigation, useful for capturing authenticated pages.
+  </ParamField>
+  <ParamField body="userAgentMode" type='"random" | "custom"'>
+    Set to `"random"` to have AdsCrawl select a realistic User-Agent. Defaults to `"random"` when no User-Agent is provided.
+  </ParamField>
+  <ParamField body="timeoutMs" type="number">
+    Navigation timeout in milliseconds. Must be positive and no greater than 3,600,000.
+  </ParamField>
+</Accordion>

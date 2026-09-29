@@ -1,0 +1,235 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "AdsCrawl",
+  "colors": {
+    "primary": "#0071e3",
+    "light": "#7c7c7e",
+    "dark": "#070707"
+  },
+  "favicon": {
+    "light": "/images/AdsCrawl-Dock4.svg",
+    "dark": "/images/AdsCrawl-Dock4.svg"
+  },
+  "logo": {
+    "light": "https://media.brand.dev/4640f1e9-6451-460f-a082-f8c2438d4f3b.svg",
+    "dark": "/images/AdsCrawl-Mainlogo2.svg",
+    "href": "https://www.adscrawl.net/"
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "Start for Free",
+      "href": "https://app.adscrawl.net/register/"
+    }
+  },
+  "navigation": {
+    "languages": [
+      {
+        "language": "en",
+        "default": true,
+        "tabs": [
+          {
+            "tab": "Documentation",
+            "groups": [
+              {
+                "group": "Get Started",
+                "pages": [
+                  "introduction",
+                  "quickstart",
+                  "authentication",
+                  {
+                    "group": "SDKs & Integrations",
+                    "pages": [
+                      "sdks/overview",
+                      "sdks/javascript",
+                      "sdks/python",
+                      "sdks/go",
+                      "sdks/ruby",
+                      "sdks/php",
+                      "sdks/codex"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Core Concepts",
+                "pages": [
+                  "concepts/browser-tasks",
+                  "concepts/remote-cdp",
+                  "concepts/cloud-browsers",
+                  "concepts/proxies"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "guides/fetch-html",
+                  "guides/extract-data",
+                  "guides/screenshots",
+                  "guides/playwright-automation",
+                  "guides/cloud-browser-sessions"
+                ]
+              },
+              {
+                "group": "Pricing & Limits",
+                "pages": [
+                  "pricing",
+                  "credits-and-limits"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "API Reference",
+            "groups": [
+              {
+                "group": "Browser Tasks",
+                "pages": [
+                  "api-reference/html",
+                  "api-reference/screenshot",
+                  "api-reference/spa-extract"
+                ]
+              },
+              {
+                "group": "Remote CDP",
+                "pages": [
+                  "api-reference/cdp-sessions",
+                  "api-reference/cdp-live-token"
+                ]
+              },
+              {
+                "group": "Cloud Browsers",
+                "pages": [
+                  "api-reference/cloud-browsers-list",
+                  "api-reference/cloud-browsers-create",
+                  "api-reference/cloud-browsers-launch",
+                  "api-reference/cloud-browsers-start",
+                  "api-reference/cloud-browsers-stop"
+                ]
+              },
+              {
+                "group": "Schemas",
+                "pages": [
+                  "api-reference/schemas"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "language": "zh",
+        "tabs": [
+          {
+            "tab": "文档",
+            "groups": [
+              {
+                "group": "快速上手",
+                "pages": [
+                  "zh/introduction",
+                  "zh/quickstart",
+                  "zh/authentication",
+                  {
+                    "group": "SDK 与集成",
+                    "pages": [
+                      "zh/sdks/overview",
+                      "zh/sdks/javascript",
+                      "zh/sdks/python",
+                      "zh/sdks/go",
+                      "zh/sdks/ruby",
+                      "zh/sdks/php",
+                      "zh/sdks/codex"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "核心概念",
+                "pages": [
+                  "zh/concepts/browser-tasks",
+                  "zh/concepts/remote-cdp",
+                  "zh/concepts/cloud-browsers",
+                  "zh/concepts/proxies"
+                ]
+              },
+              {
+                "group": "使用指南",
+                "pages": [
+                  "zh/guides/fetch-html",
+                  "zh/guides/extract-data",
+                  "zh/guides/screenshots",
+                  "zh/guides/playwright-automation",
+                  "zh/guides/cloud-browser-sessions"
+                ]
+              },
+              {
+                "group": "价格与限制",
+                "pages": [
+                  "zh/pricing",
+                  "zh/credits-and-limits"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "API 参考",
+            "groups": [
+              {
+                "group": "浏览器任务",
+                "pages": [
+                  "zh/api-reference/html",
+                  "zh/api-reference/screenshot",
+                  "zh/api-reference/spa-extract"
+                ]
+              },
+              {
+                "group": "远程 CDP",
+                "pages": [
+                  "zh/api-reference/cdp-sessions",
+                  "zh/api-reference/cdp-live-token"
+                ]
+              },
+              {
+                "group": "云浏览器",
+                "pages": [
+                  "zh/api-reference/cloud-browsers-list",
+                  "zh/api-reference/cloud-browsers-create",
+                  "zh/api-reference/cloud-browsers-launch",
+                  "zh/api-reference/cloud-browsers-start",
+                  "zh/api-reference/cloud-browsers-stop"
+                ]
+              },
+              {
+                "group": "数据结构",
+                "pages": [
+                  "zh/api-reference/schemas"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "description": "Connect with Playwright, Puppeteer, or CDP and run jobs in a full browser environment with residential proxy routing—built for dynamic pages, authenticated sessions, and sites that stop basic scrapers.",
+  "footer": {
+    "socials": {
+      "github": "https://github.com/AdsCrawl",
+      "x": "https://x.com/Adscrawl"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "vscode",
+      "mcp",
+      "cursor"
+    ],
+    "display": "header"
+  }
+}

@@ -1,0 +1,223 @@
+---
+title: "Extract Structured Data from JavaScript-Heavy Pages"
+sidebarTitle: "Extract Data"
+description: "Use POST /spa-extract to pull typed fields from SPAs via DOM selectors or network interception, or apply a pre-built template for popular sites."
+---
+
+Use `POST /spa-extract` to pull specific, typed fields out of single-page applications and other JavaScript-heavy sites. You can target elements directly with CSS selectors, intercept live network responses to capture API payloads, or apply a pre-built template for popular sites like SimilarWeb and Google Trends — without writing or maintaining a scraper.
+
+## Two extraction modes
+
+The `mode` field controls what the endpoint does:
+
+| Mode | What it returns |
+|---|---|
+| `inspect` | A suggested extraction plan: candidate DOM selectors and intercepted network calls found on the page |
+| `extract` | The actual field values, extracted according to your `fields` definition or a named `template` |
+
+## Discover fields with inspect mode
+
+Run `inspect` first when you're working with an unfamiliar page. The response shows you which DOM elements and network responses are available, and generates a `suggestedPlan` you can paste directly into an `extract` request.
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "mode": "inspect"
+}
+```
+
+The response looks like this:
+
+```json
+{
+  "mode": "inspect",
+  "page": {
+    "url": "https://example.com/dashboard",
+    "title": "Example Dashboard"
+  },
+  "candidates": {
+    "dom": { "metrics": [], "tables": [] },
+    "network": []
+  },
+  "suggestedPlan": {
+    "fields": {},
+    "schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+## Extract custom fields
+
+Define a `fields` object in your request body, where each key is the output field name and its value describes where and how to read it.
+
+### DOM fields
+
+A DOM field reads from a rendered element. Set `source: "dom"`, point to an element with `selector`, and choose a `parse` type to coerce the value.
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "mode": "extract",
+  "waitFor": { "selector": "h1", "timeoutMs": 15000 },
+  "fields": {
+    "title": { "source": "dom", "selector": "h1", "parse": "string" },
+    "price": { "source": "dom", "selector": ".price", "parse": "number" }
+  }
+}
+```
+
+### Network fields
+
+A network field intercepts a JSON response from the page's own API calls. Set `source: "network"`, use `urlIncludes` to match the request URL, and supply a `path` using JSONPath syntax to reach the value inside the response.
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "mode": "extract",
+  "fields": {
+    "visitorCount": {
+      "source": "network",
+      "urlIncludes": "/api/metrics",
+      "path": "$.data.visitors"
+    }
+  }
+}
+```
+
+### Field options reference
+
+<Accordion title="field definition options">
+  <ParamField body="source" type='"dom" | "network"' required>
+    Data source for the field.
+  </ParamField>
+  <ParamField body="selector" type="string">
+    CSS selector (DOM fields only).
+  </ParamField>
+  <ParamField body="value" type='"text" | "html" | "attribute"'>
+    DOM read mode. Defaults to `"text"`. Use `"attribute"` together with the `attribute` field.
+  </ParamField>
+  <ParamField body="urlIncludes" type="string">
+    Substring to match a network response URL (network fields only).
+  </ParamField>
+  <ParamField body="path" type="string">
+    JSONPath expression into the matched response, e.g. `$.data.metrics[0].value`.
+  </ParamField>
+  <ParamField body="parse" type='"string" | "number" | "integer" | "boolean" | "json"'>
+    Coerce the extracted value to this type.
+  </ParamField>
+  <ParamField body="multiple" type="boolean">
+    Return all matching elements as an array (DOM fields only).
+  </ParamField>
+  <ParamField body="regex" type="string">
+    Apply a regular expression. When a capture group is present, group 1 is returned.
+  </ParamField>
+  <ParamField body="required" type="boolean">
+    Missing required fields cause a `422 SPA_REQUIRED_FIELDS_MISSING` response.
+  </ParamField>
+</Accordion>
+
+## Use pre-built templates
+
+AdsCrawl ships three maintained templates for sites that are difficult to scrape reliably. Pass `template` instead of `fields`.
+
+<CardGroup cols={3}>
+  <Card title="similarweb-overview" icon="chart-bar">
+    Website traffic, engagement, and ranking metrics from SimilarWeb.
+  </Card>
+  <Card title="google-trends-explore" icon="trending-up">
+    Interest-over-time and average values for up to five search terms.
+  </Card>
+  <Card title="chrome-web-store-app-info" icon="puzzle-piece">
+    Extension metadata including ratings, user counts, and categories.
+  </Card>
+</CardGroup>
+
+List templates and see their full output schemas at any time:
+
+```bash
+curl -sS "https://api.adscrawl.net/spa-extract/templates" \
+  -H "x-api-key: $ADSCRAWL_API_KEY"
+```
+
+### SimilarWeb example
+
+Pass the full SimilarWeb URL and a `countryCode` for proxy routing. The template handles authentication, scroll timing, and field extraction automatically.
+
+```json
+{
+  "template": "similarweb-overview",
+  "url": "https://www.similarweb.com/website/example.com/#overview",
+  "countryCode": "GLOBAL"
+}
+```
+
+### Google Trends example
+
+Supply a comma-separated list of keywords via the `keyword` field (recommended). The API builds the canonical Trends URL for you. You can compare up to five unique terms.
+
+```json
+{
+  "template": "google-trends-explore",
+  "keyword": "playwright,puppeteer"
+}
+```
+
+<Note>
+  Do not pass `cookies` to a Google Trends request. Any non-empty cookies array returns `400 INVALID_TRENDS_COOKIES`.
+</Note>
+
+## Run actions before extraction
+
+Use the `actions` array to interact with the page — click buttons, fill forms, scroll, or wait — before fields are extracted. Actions execute in order and each step is capped at 30 seconds.
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "mode": "extract",
+  "actions": [
+    { "type": "click", "selector": "#load-more" },
+    { "type": "wait", "milliseconds": 1500 },
+    { "type": "scroll", "y": 800 }
+  ],
+  "fields": {
+    "title": { "source": "dom", "selector": "h1", "parse": "string" },
+    "price": { "source": "dom", "selector": ".price", "parse": "number" }
+  }
+}
+```
+
+Available action types:
+
+| Type | Description |
+|---|---|
+| `wait` | Pause for 0–30,000 ms |
+| `waitForSelector` | Wait for an element to become visible |
+| `click` | Click the first matching element |
+| `fill` | Clear and type into an input |
+| `press` | Press a keyboard key on an element |
+| `scroll` | Scroll an element into view or the page by `x`/`y` |
+
+## Full extract response
+
+A successful `extract` response always contains `mode`, `page`, `data`, and `missingFields`:
+
+```json
+{
+  "mode": "extract",
+  "page": {
+    "url": "https://example.com/dashboard",
+    "title": "Example Dashboard"
+  },
+  "data": {
+    "title": "Example Dashboard",
+    "price": 49.99
+  },
+  "missingFields": []
+}
+```
+
+`missingFields` lists any field names that were defined but could not be resolved. Fields marked `required: true` that are missing will instead return a `422` error.

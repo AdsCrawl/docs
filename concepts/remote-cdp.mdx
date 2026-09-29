@@ -1,0 +1,143 @@
+---
+title: "Remote CDP: Connect Any CDP Client to a Cloud Browser"
+sidebarTitle: "Remote CDP"
+description: "Spin up a dedicated cloud Chromium session and connect to it with Playwright, Puppeteer, or raw CDP — fully managed, no infrastructure required."
+---
+
+Remote CDP gives you a dedicated, managed Chromium session that you connect to using any CDP-compatible automation library. Create a session through the API, receive a `cdpBaseUrl`, and pass it directly to `playwright.connectOverCDP()` or Puppeteer's `connect()`. From there, every Playwright or Puppeteer API you already know works exactly as it does locally — navigate, click, fill forms, intercept network requests, and extract data — while AdsCrawl handles the browser infrastructure, proxies, and fingerprinting.
+
+## How it works
+
+<Steps>
+  <Step title="Create a session">
+    Send `POST /cdp/sessions` with your desired `idleTimeoutMs`, `maxSessionMs`, and `browserSettings`. The API responds with a `sessionId` and a `cdpBaseUrl` that already contains your data token.
+
+    ```bash
+    curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
+      -H "content-type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "idleTimeoutMs": 600000,
+        "maxSessionMs": 3600000,
+        "browserSettings": {
+          "viewport": { "width": 1440, "height": 900 },
+          "countryCode": "GLOBAL",
+          "userAgentMode": "random",
+          "userAgentOs": "windows"
+        }
+      }'
+    ```
+
+    The response looks like:
+
+    ```json
+    {
+      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+      "expiresAt": "2026-04-21T10:30:00.000Z",
+      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+    }
+    ```
+  </Step>
+
+  <Step title="Connect with Playwright or Puppeteer">
+    Pass `cdpBaseUrl` directly to your automation library. No additional configuration is needed.
+
+    <CodeGroup>
+      ```typescript Playwright (TypeScript)
+      import { chromium } from 'playwright';
+
+      const browser = await chromium.connectOverCDP(
+        'https://api.adscrawl.net/cdp/sessions/SESSION_ID?token=DATA_TOKEN'
+      );
+      const page = await browser.newPage();
+      await page.goto('https://example.com');
+      const title = await page.title();
+      console.log(title);
+      await browser.close();
+      ```
+
+      ```javascript Puppeteer (JavaScript)
+      import puppeteer from 'puppeteer-core';
+
+      const browser = await puppeteer.connect({
+        browserWSEndpoint:
+          'wss://api.adscrawl.net/cdp/sessions/SESSION_ID/devtools/browser/BROWSER_ID?token=DATA_TOKEN',
+      });
+      const page = await browser.newPage();
+      await page.goto('https://example.com');
+      console.log(await page.title());
+      await browser.close();
+      ```
+
+      ```javascript Raw CDP (JavaScript)
+      const discovery = await fetch(
+        'https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN'
+      ).then((res) => res.json());
+
+      const socket = new WebSocket(discovery.webSocketDebuggerUrl);
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Automate the page">
+    Navigate, interact, and extract data using the full Playwright or Puppeteer API surface — the remote browser behaves identically to a local one.
+
+    ```typescript
+    const page = await browser.newPage();
+    await page.goto('https://example.com/login');
+    await page.fill('#email', 'user@example.com');
+    await page.fill('#password', 'secret');
+    await page.click('button[type="submit"]');
+    await page.waitForNavigation();
+    const accountName = await page.textContent('.account-name');
+    ```
+  </Step>
+
+  <Step title="Delete the session when done">
+    Call `DELETE /cdp/sessions/:sessionId` to terminate the browser and release resources immediately, rather than waiting for the idle or max-session timeout to expire.
+
+    ```bash
+    curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
+      -H "x-api-key: YOUR_API_KEY"
+    ```
+  </Step>
+</Steps>
+
+## Security model
+
+Remote CDP uses two separate tokens to protect your session:
+
+- **Data token** — embedded in `cdpBaseUrl` and used for all CDP WebSocket connections and discovery requests. This token is long-lived (valid for the session lifetime) and scoped to read/control the browser over CDP.
+- **Control token** (`controlToken`) — a single-use token issued by `POST /cdp/live-token` for live interactive viewer access. It expires after **30 seconds** and can only be consumed once. Request a fresh control token each time you need to open the live viewer.
+
+<Warning>
+  Never put your data token or API key in client-side code, browser URLs accessible to end users, or public logs. Treat the data token with the same care as your API key.
+</Warning>
+
+## Session lifecycle
+
+Configure the session lifetime at creation time with two fields:
+
+| Field | Description |
+|---|---|
+| `idleTimeoutMs` | Terminates the session if no CDP activity is detected for this duration. Values above the server cap are clamped. |
+| `maxSessionMs` | Hard upper limit on total session duration regardless of activity. Values above the server cap are clamped. |
+
+Query active sessions with `GET /cdp/sessions` at any time, or delete a specific session with `DELETE /cdp/sessions/:sessionId`.
+
+## Remote CDP vs. Cloud Browsers
+
+Remote CDP sessions are **temporary** — they hold no saved profile, and all browser state (cookies, local storage, history) is discarded when the session ends. Use Remote CDP when you need a stateful scripted session without long-term profile persistence.
+
+If you need to save a browser profile with cookies, fingerprint settings, and proxy configuration that persists across sessions, see [Cloud Browsers](/concepts/cloud-browsers) instead.
+
+## API reference
+
+<CardGroup cols={2}>
+  <Card title="CDP Sessions" icon="browser" href="/api-reference/cdp-sessions">
+    Create, list, and delete dedicated CDP sessions.
+  </Card>
+  <Card title="CDP Live Token" icon="key" href="/api-reference/cdp-live-token">
+    Issue a single-use control token for live interactive viewer access.
+  </Card>
+</CardGroup>

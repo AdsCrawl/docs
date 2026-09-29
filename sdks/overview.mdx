@@ -1,0 +1,253 @@
+---
+title: "AdsCrawl SDKs and Integrations"
+description: "Official AdsCrawl SDKs for JavaScript, Python, Go, Ruby, and PHP. Zero runtime dependencies, server-side use, and no automatic retries of metered requests."
+sidebarTitle: "Overview"
+---
+
+Official AdsCrawl SDKs turn a URL into rendered HTML, Markdown, structured data, or a PNG screenshot. When your workflow needs interaction, connect a remote browser with Playwright or Puppeteer. All SDKs share the same design: zero runtime dependencies, explicit HTTP deadlines, typed errors, and no automatic retries of metered requests or browser creationOfficial AdsCrawl SDKs turn a URL into rendered HTML, Markdown, structured data, or a PNG screenshot. When your workflow needs interaction, connect a remote browser with Playwright or Puppeteer. All SDKs share the same design: zero runtime dependencies, explicit HTTP deadlines, typed errors, and no automatic retries of metered requests or browser creation.
+
+## Supported languageupported languages
+
+| Language | Install command | Version requirement | Repository |
+| --- | --- | --- | --- |
+| JavaScript / TypeScript | `npm install adscrawl` | Node.js 20+ | [adscrawl-js](https://github.com/AdsCrawl/adscrawl-js) |
+| Python | `pip install adscrawl` | Python 3.9+ | [adscrawl-python](https://github.com/AdsCrawl/adscrawl-python) |
+| Go | `go get github.com/AdsCrawl/adscrawl-go@v0.1.0` | Go 1.21+ | [adscrawl-go](https://github.com/AdsCrawl/adscrawl-go) |
+| Ruby | `gem install adscrawl` | Ruby 3.1+ | [adscrawl-ruby](https://github.com/AdsCrawl/adscrawl-ruby) |
+| PHP | `composer require adscrawl/adscrawl` | PHP 8.1+ | [adscrawl-php](https://github.com/AdsCrawl/adscrawl-php) |
+
+| Language | Install command | Version requirement | Repository |
+| --- | --- | --- | --- |
+| JavaScript / TypeScript | `npm install adscrawl` | Node.js 20+ | [adscrawl-js](https://github.com/AdsCrawl/adscrawl-js) |
+| Python | `pip install adscrawl` | Python 3.9+ | [adscrawl-python](https://github.com/AdsCrawl/adscrawl-python) |
+| Go | `go get github.com/AdsCrawl/adscrawl-go@v0.1.0` | Go 1.21+ | [adscrawl-go](https://github.com/AdsCrawl/adscrawl-go) |
+| Ruby | `gem install adscrawl` | Ruby 3.1+ | [adscrawl-ruby](https://github.com/AdsCrawl/adscrawl-ruby) |
+| PHP | `composer require adscrawl/adscrawl` | PHP 8.1+ | [adscrawl-php](https://github.com/AdsCrawl/adscrawl-php) |
+
+## Corere capabilities
+
+- **Rendered content and screenshots** — fetch HTML, Markdown, or an article object from any URL, or capture a PNG screenshot with viewport, full-page, and element-level targeting.
+- **Structured extraction and templates** — extract named fields from pages using DOM selectors or network responses, or use built-in SPA templates like `google-trends-explore`.
+- **Remote CDP sessions** — create short-lived browser sessions and connect your own Playwright, Puppeteer, or CDP-compatible library to `cdpBaseUrl`.
+- **Persistent cloud browsers** — create long-lived browser profiles, start and stop them on demand, and retain cookies, tabs, and configuration across sessions.
+- **Proxy and fingerprinting** — route through custom HTTP or SOCKS5 proxies, or use managed `countryCode` routing. Apply coherent browser fingerprints verified against BrowserScan, Pixelscan, and IPhey.
+
+## Common configuration
+
+All SDKs resolve configuration in the same order:
+
+- **API key:** defaults to the `ADSCRAWL_API_KEY` environment variable. You can also pass it explicitly during client initialization.
+- **Base URL:** defaults to `ADSCRAWL_BASE_URL`, then `ADSCRAWL_API_URL`, then `https://api.adscrawl.net`.
+- **HTTP timeout:** defaults to 90 seconds for most calls. `cloudBrowsers.launch()` uses a longer default to allow startup and server cleanup.
+
+All SDKs are server-side only. Do not expose your API key in frontend bundles.
+
+## Quick examples
+
+The snippet below fetches a Markdown version of the AdsCrawl homepage in every supported language.
+
+- **Rendered content and screenshots** — fetch HTML, Markdown, or an article object from any URL, or capture a PNG screenshot with viewport, full-page, and element-level targeting.
+- **Structured extraction and templates** — extract named fields from pages using DOM selectors or network responses, or use built-in SPA templates like `google-trends-explore`.
+- **Remote CDP sessions** — create short-lived browser sessions and connect your own Playwright, Puppeteer, or CDP-compatible library to `cdpBaseUrl`.
+- **Persistent cloud browsers** — create long-lived browser profiles, start and stop them on demand, and retain cookies, tabs, and configuration across sessions.
+- **Proxy and fingerprinting** — route through custom HTTP or SOCKS5 proxies, or use managed `countryCode` routing. Apply coherent browser fingerprints verified against BrowserScan, Pixelscan, and IPhey.
+
+## Common configuration
+
+All SDKs resolve configuration in the same order:
+
+- **API key:** defaults to the `ADSCRAWL_API_KEY` environment variable. You can also pass it explicitly during client initialization.
+- **Base URL:** defaults to `ADSCRAWL_BASE_URL`, then `ADSCRAWL_API_URL`, then `https://api.adscrawl.net`.
+- **HTTP timeout:** defaults to 90 seconds for most calls. `cloudBrowsers.launch()` uses a longer default to allow startup and server cleanup.
+
+All SDKs are server-side only. Do not expose your API key in frontend bundles.
+
+## Quick examples
+
+The snippet below fetches a Markdown version of the AdsCrawl homepage in every supported language.
+
+<CodeGroup>
+
+```ts JavaScript / TypeScript
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const markdown = await client.markdown({
+  url: 'https://www.adscrawl.net',
+  waitUntil: 'domcontentloaded',
+});
+console.log(markdown);import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const markdown = await client.markdown({
+  url: 'https://www.adscrawl.net',
+  waitUntil: 'domcontentloaded',
+});
+console.log(markdown);
+```
+
+```python Python
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+markdown = client.markdown({
+    "url": "https://www.adscrawl.net",
+    "waitUntil": "domcontentloaded",
+})
+print(markdown)from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+markdown = client.markdown({
+    "url": "https://www.adscrawl.net",
+    "waitUntil": "domcontentloaded",
+})
+print(markdown)
+```
+
+```go Go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil { log.Fatal(err) }
+    markdown, err := client.Markdown(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{
+            URL:       "https://www.adscrawl.net",
+            WaitUntil: "domcontentloaded",
+        },
+    })
+    if err != nil { log.Fatal(err) }
+    fmt.Println(markdown)
+}package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil { log.Fatal(err) }
+    markdown, err := client.Markdown(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{
+            URL:       "https://www.adscrawl.net",
+            WaitUntil: "domcontentloaded",
+        },
+    })
+    if err != nil { log.Fatal(err) }
+    fmt.Println(markdown)
+}
+```
+
+```ruby Ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new
+markdown = client.markdown(
+  url: "https://www.adscrawl.net",
+  waitUntil: "domcontentloaded"
+)
+puts markdownrequire "adscrawl"
+
+client = AdsCrawl::Client.new
+markdown = client.markdown(
+  url: "https://www.adscrawl.net",
+  waitUntil: "domcontentloaded"
+)
+puts markdown
+```
+
+```php PHP
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+$markdown = $client->markdown([
+    'url' => 'https://www.adscrawl.net',
+    'waitUntil' => 'domcontentloaded',
+]);
+echo $markdown;<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+$markdown = $client->markdown([
+    'url' => 'https://www.adscrawl.net',
+    'waitUntil' => 'domcontentloaded',
+]);
+echo $markdown;
+```
+
+</CodeGroup>
+
+## Next steps
+
+<CardGroup>
+  <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
+    TypeScript types, ESM/CommonJS support, and native `fetch`. Node.js 20+.
+  </Card>
+
+  <Card title="Python SDK" icon="python" href="/sdks/python">
+    Sync and async clients, zero runtime dependencies. Python 3.9+.
+  </Card>
+
+  <Card title="Go SDK" icon="golang" href="/sdks/go">
+    Context-aware deadlines, typed models, standard-library HTTP. Go 1.21+.
+  </Card>
+
+  <Card title="Ruby SDK" icon="ruby" href="/sdks/ruby">
+    Keyword and hash arguments, standard-library only. Ruby 3.1+.
+  </Card>
+
+  <Card title="PHP SDK" icon="php" href="/sdks/php">
+    Requires JSON and cURL extensions only. PHP 8.1+.
+  </Card>
+
+  <Card title="Codex Plugin" icon="puzzle" href="/sdks/codex">
+    OpenAI Codex MCP integration for browser automation from natural language.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup>
+  <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
+    TypeScript types, ESM/CommonJS support, and native `fetch`. Node.js 20+.
+  </Card>
+
+  <Card title="Python SDK" icon="python" href="/sdks/python">
+    Sync and async clients, zero runtime dependencies. Python 3.9+.
+  </Card>
+
+  <Card title="Go SDK" icon="golang" href="/sdks/go">
+    Context-aware deadlines, typed models, standard-library HTTP. Go 1.21+.
+  </Card>
+
+  <Card title="Ruby SDK" icon="ruby" href="/sdks/ruby">
+    Keyword and hash arguments, standard-library only. Ruby 3.1+.
+  </Card>
+
+  <Card title="PHP SDK" icon="php" href="/sdks/php">
+    Requires JSON and cURL extensions only. PHP 8.1+.
+  </Card>
+
+  <Card title="Codex Plugin" icon="puzzle" href="/sdks/codex">
+    OpenAI Codex MCP integration for browser automation from natural language.
+  </Card>
+</CardGroup>

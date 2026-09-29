@@ -1,0 +1,105 @@
+---
+title: "AdsCrawl Credits, Rate Limits, and Concurrency Caps"
+sidebarTitle: "Credits & Limits"
+description: "Understand how AdsCrawl credits are consumed, how rate limits and concurrency caps apply, and which error codes signal billing or capacity issues."
+---
+
+Every AdsCrawl plan comes with a credit allowance and a set of limits that govern how many requests you can make, how many browser sessions you can run simultaneously, and how many Cloud Browser profiles you can keep saved. Understanding these boundaries helps you design reliable automations that handle errors gracefully rather than hitting unexpected walls in production.
+
+## Credit Consumption
+
+Credits are the billing unit for every operation on AdsCrawl. The table below shows how each API type consumes them.
+
+| Operation | Credit cost | When consumed |
+|---|---|---|
+| `POST /html` | 1 credit per request | After request validation, before execution |
+| `POST /screenshot` | 1 credit per request | After request validation, before execution |
+| `POST /spa-extract` | 1 credit per request | After request validation, before execution |
+| Cloud Browser (running) | 1 credit per started minute | From successful start until confirmed stop |
+
+<Warning>
+  Credits are **non-refundable** once consumed. If a browser task request fails during execution — after the credit has already been deducted — the credit is not returned. Validate your inputs before sending requests to avoid unnecessary credit loss.
+</Warning>
+
+<Note>
+  Cloud Browser billing is per **started minute**, rounded up. A browser that runs for 90 seconds consumes 2 credits. Repeated stop notifications do not trigger duplicate charges — billing ends at the first confirmed stop.
+</Note>
+
+## Rate Limits
+
+AdsCrawl enforces per-key rate limits to protect service stability. When you exceed a rate limit, the API returns **HTTP 429**. Back off and retry after a delay.
+
+<Tip>
+  Implement **exponential backoff** when you receive a 429 response. Start with a 1-second delay and double it on each retry, up to a reasonable maximum (for example, 30 seconds), before giving up.
+</Tip>
+
+### CDP Session Rate Limits
+
+Remote CDP sessions have a per-API-key concurrency limit. Exceeding it returns:
+
+```json
+{
+  "error": "CDP sessions per API key limit reached"
+}
+```
+
+with HTTP status **429** and the code `SESSIONS_PER_API_KEY_LIMIT_REACHED`. Delete an existing session before creating a new one, or distribute load across multiple API keys if your plan allows.
+
+## Concurrency Limits
+
+### Cloud Browser Concurrency
+
+Each user account has a `runningLimit` — the maximum number of Cloud Browser sessions (in `starting`, `running`, or `stopping` state) that can be active at the same time. The default is **1**.
+
+You can inspect your current usage at any time via `GET /cloud-browsers`:
+
+```json
+{
+  "limit": 10,
+  "runningLimit": 1,
+  "runningCount": 0
+}
+```
+
+- **`limit`** — your plan's saved Cloud Browser profile allowance
+- **`runningLimit`** — maximum simultaneous running sessions for your account
+- **`runningCount`** — sessions currently in `starting`, `running`, or `stopping` state, across all profiles, pages, and API keys
+
+<Note>
+  `runningCount` includes sessions across **all** your API keys and dashboard activity. A session in `stopping` state still occupies a running slot until it reaches `stopped`.
+</Note>
+
+When you try to start a Cloud Browser and the running allowance is full, the API returns **409 CLOUD\_BROWSER\_CONCURRENCY\_LIMIT**:
+
+```json
+{
+  "error": "Cloud browser running limit reached",
+  "code": "CLOUD_BROWSER_CONCURRENCY_LIMIT"
+}
+```
+
+<Warning>
+  **Lowering your `runningLimit` does not stop existing sessions.** It only prevents new starts until running sessions free up capacity. Stop a running browser before attempting a new start when you are at your limit.
+</Warning>
+
+## Error Codes Reference
+
+The following error codes indicate billing or capacity problems. Use the HTTP status code and the stable `code` field for error handling in your application — do not rely on the human-readable `error` message, which may change.
+
+| HTTP | Code | Meaning | Action |
+|---|---|---|---|
+| 402 | `INSUFFICIENT_CREDITS` | Your credit balance is zero or too low to complete the request | Top up your balance in [Billing & Usage](https://app.adscrawl.net/dashboard/) |
+| 402 | `PAID_PLAN_REQUIRED` | This feature requires an active paid plan | Upgrade your plan from the [dashboard](https://app.adscrawl.net/dashboard/) |
+| 409 | `CLOUD_BROWSER_CONCURRENCY_LIMIT` | Your concurrent running limit is full or set to zero | Stop a running browser before starting another |
+| 429 | _(varies)_ | Rate limit or per-key session limit exceeded | Wait and retry with exponential backoff |
+
+## Request Size and Parameter Limits
+
+The following hard limits apply to all API requests. Requests that exceed these bounds are rejected with HTTP 400 before any credit is consumed.
+
+| Limit | Value |
+|---|---|
+| Request body size | 1 MiB maximum |
+| `timeoutMs` parameter | 3,600,000 ms (1 hour) maximum |
+| Cloud Browser tabs on launch (`tabs` array) | 8 URLs maximum |
+| Cookie list (`cookies` array) | Up to 10,000 entries, within the 1 MiB request body cap |

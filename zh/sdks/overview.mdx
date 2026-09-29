@@ -1,0 +1,144 @@
+---
+title: "AdsCrawl SDK 和集成"
+description: "官方 AdsCrawl JavaScript、Python、Go、Ruby 和 PHP SDK。零运行时依赖、仅服务器端使用，且不会对计费的请求自动重试。"
+sidebarTitle: "概览"
+---
+
+官方 AdsCrawl SDK 可以将 URL 转换为渲染后的 HTML、Markdown、结构化数据或 PNG 截图。当你的工作流需要交互时，可以通过 Playwright 或 Puppeteer 连接远程浏览器。所有 SDK 遵循相同的设计原则：零运行时依赖、显式 HTTP 超时、类型化错误，并且不会对计费的请求或浏览器创建自动重试。
+
+## 支持的语言
+
+| 语言 | 安装命令 | 版本要求 | 仓库 |
+| --- | --- | --- | --- |
+| JavaScript / TypeScript | `npm install adscrawl` | Node.js 20+ | [adscrawl-js](https://github.com/AdsCrawl/adscrawl-js) |
+| Python | `pip install adscrawl` | Python 3.9+ | [adscrawl-python](https://github.com/AdsCrawl/adscrawl-python) |
+| Go | `go get github.com/AdsCrawl/adscrawl-go@v0.1.0` | Go 1.21+ | [adscrawl-go](https://github.com/AdsCrawl/adscrawl-go) |
+| Ruby | `gem install adscrawl` | Ruby 3.1+ | [adscrawl-ruby](https://github.com/AdsCrawl/adscrawl-ruby) |
+| PHP | `composer require adscrawl/adscrawl` | PHP 8.1+ | [adscrawl-php](https://github.com/AdsCrawl/adscrawl-php) |
+
+## 核心能力
+
+- **渲染内容和截图** — 从任意 URL 获取 HTML、Markdown 或文章对象，或通过指定视口、整页及元素级别的方式截取 PNG 截图。
+- **结构化提取和模板** — 使用 DOM 选择器或网络响应从页面提取命名字段，或使用内置的 SPA 模板如 `google-trends-explore`。
+- **远程 CDP 会话** — 创建短期浏览器会话，并将你自己的 Playwright、Puppeteer 或 CDP 兼容库连接到 `cdpBaseUrl`。
+- **持久化云浏览器** — 创建长期浏览器配置文件，按需启动和停止，并在会话之间保留 Cookie、标签页和配置。
+- **代理和指纹** — 通过自定义 HTTP 或 SOCKS5 代理进行路由，或使用托管的 `countryCode` 路由。应用经过 BrowserScan、Pixelscan 和 IPhey 验证的连贯浏览器指纹。
+
+## 通用配置
+
+所有 SDK 按照相同的顺序解析配置：
+
+- **API 密钥**：默认读取 `ADSCRAWL_API_KEY` 环境变量。你也可以在初始化客户端时显式传入。
+- **Base URL**：依次为 `ADSCRAWL_BASE_URL`、`ADSCRAWL_API_URL`，最后默认使用 `https://api.adscrawl.net`。
+- **HTTP 超时**：大多数调用默认 90 秒。`cloudBrowsers.launch()` 使用更长的默认值，以便启动和服务器清理。
+
+所有 SDK 仅限服务器端使用。请勿将 API 密钥暴露在前端打包文件中。
+
+## 快速示例
+
+以下代码片段展示了如何在每种支持的语言中获取 AdsCrawl 首页的 Markdown 版本。
+
+<CodeGroup>
+
+```ts JavaScript / TypeScript
+import AdsCrawl from 'adscrawl';
+
+const client = new AdsCrawl();
+const markdown = await client.markdown({
+  url: 'https://www.adscrawl.net',
+  waitUntil: 'domcontentloaded',
+});
+console.log(markdown);
+```
+
+```python Python
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+markdown = client.markdown({
+    "url": "https://www.adscrawl.net",
+    "waitUntil": "domcontentloaded",
+})
+print(markdown)
+```
+
+```go Go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil { log.Fatal(err) }
+    markdown, err := client.Markdown(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{
+            URL:       "https://www.adscrawl.net",
+            WaitUntil: "domcontentloaded",
+        },
+    })
+    if err != nil { log.Fatal(err) }
+    fmt.Println(markdown)
+}
+```
+
+```ruby Ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new
+markdown = client.markdown(
+  url: "https://www.adscrawl.net",
+  waitUntil: "domcontentloaded"
+)
+puts markdown
+```
+
+```php PHP
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use AdsCrawl\Client;
+
+$client = new Client();
+$markdown = $client->markdown([
+    'url' => 'https://www.adscrawl.net',
+    'waitUntil' => 'domcontentloaded',
+]);
+echo $markdown;
+```
+
+</CodeGroup>
+
+## 下一步
+
+<CardGroup>
+  <Card title="JavaScript SDK" icon="js" href="/zh/sdks/javascript">
+    TypeScript 类型、ESM/CommonJS 支持、原生 `fetch`。Node.js 20+。
+  </Card>
+
+  <Card title="Python SDK" icon="python" href="/zh/sdks/python">
+    同步和异步客户端，零运行时依赖。Python 3.9+。
+  </Card>
+
+  <Card title="Go SDK" icon="golang" href="/zh/sdks/go">
+    上下文感知超时、类型化模型、标准库 HTTP。Go 1.21+。
+  </Card>
+
+  <Card title="Ruby SDK" icon="ruby" href="/zh/sdks/ruby">
+    关键字和哈希参数，仅依赖标准库。Ruby 3.1+。
+  </Card>
+
+  <Card title="PHP SDK" icon="php" href="/zh/sdks/php">
+    仅需 JSON 和 cURL 扩展。PHP 8.1+。
+  </Card>
+
+  <Card title="Codex 插件" icon="puzzle" href="/zh/sdks/codex">
+    OpenAI Codex MCP 集成，通过自然语言实现浏览器自动化。
+  </Card>
+</CardGroup>

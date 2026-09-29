@@ -1,0 +1,92 @@
+---
+title: "AdsCrawl 定价：免费版、Hobby、Starter 和 Pro 套餐"
+sidebarTitle: "Pricing"
+description: "对比免费版、Hobby、Starter 和 Pro 套餐。选择适合你自动化需求的积分额度、云浏览器配置数量和 API 密钥数量。"
+---
+
+AdsCrawl 采用基于积分的定价模式：每个套餐都包含月度积分额度（免费版为一次性额度），你在使用 API 时消耗积分。浏览器任务请求每次消耗 1 积分，云浏览器按启动后的每分钟消耗 1 积分。选择与你使用量匹配的套餐：先从免费版开始探索 API，当你需要更多积分、更多保存的浏览器配置或更多 API 密钥时，再升级到付费套餐。
+
+<CardGroup cols={2}>
+  <Card title="Free" icon="gift">
+    **\$0** —— 无月费
+
+    - **500** 一次性积分
+    - **1** 个云浏览器配置（_可先保存，升级后启动_）
+    - **1** 个 API 密钥
+
+    [免费开始](https://app.adscrawl.net/register/)
+  </Card>
+
+  <Card title="Hobby" icon="code">
+    **\$9 / 月**
+
+    - **3,000** 积分/月
+    - **20** 个云浏览器配置
+    - **3** 个 API 密钥
+
+    [选择 Hobby](https://app.adscrawl.net/register/)
+  </Card>
+
+  <Card title="Starter" icon="rocket">
+    **\$49 / 月** ⭐ 推荐
+
+    - **100,000** 积分/月
+    - **50** 个云浏览器配置
+    - **10** 个 API 密钥
+
+    [选择 Starter](https://app.adscrawl.net/register/)
+  </Card>
+
+  <Card title="Pro" icon="building">
+    **\$199 / 月**
+
+    - **500,000** 积分/月
+    - **200** 个云浏览器配置
+    - **30** 个 API 密钥
+
+    [选择 Pro](https://app.adscrawl.net/register/)
+  </Card>
+</CardGroup>
+
+<Note>
+  免费版允许你**保存**一个云浏览器配置，但**启动**配置需要激活的付费套餐。可随时从[控制面板](https://app.adscrawl.net/dashboard/)升级。
+</Note>
+
+<Info>
+  **年度计费即将上线。** 当前仅支持按月计费。请在控制面板关注年度定价的更新通知。
+</Info>
+
+## 常见问题
+
+<Accordion title="积分每月会重置吗？">
+  是的，所有付费套餐的积分都会在每个计费周期开始时重置：Hobby 3,000 积分，Starter 100,000 积分，Pro 500,000 积分。免费版的 500 积分为**一次性额度**，不会重置。
+</Accordion>
+
+<Accordion title="免费版可以运行云浏览器吗？">
+  你可以在免费版上**保存**一个云浏览器配置，但**启动**配置需要激活的付费套餐。付费套餐的并发运行限制根据你的账户配置确定。升级到 Hobby 或更高套餐即可开始运行浏览器。
+</Accordion>
+
+<Accordion title="什么操作消耗 1 积分？">
+  每个浏览器任务请求（POST `/html`、POST `/screenshot`、POST `/spa-extract`）在通过验证且执行开始前消耗 **1 积分**。云浏览器从成功启动到确认停止，按**启动后的每分钟**消耗 1 积分。如果请求在积分消耗后失败，积分不予退还。
+</Accordion>
+
+<Accordion title="每个套餐包含多少个 API 密钥？">
+  不同套餐的 API 密钥额度如下：
+
+  | 套餐 | API 密钥数量 |
+  | --- | --- |
+  | Free | 1 |
+  | Hobby | 3 |
+  | Starter | 10 |
+  | Pro | 30 |
+
+  请将 API 密钥保存在可信服务器或密钥管理器中，切勿在客户端代码、URL 或日志中暴露。
+</Accordion>
+
+<Accordion title="在哪里查看套餐和剩余积分？">
+  登录 [AdsCrawl 控制面板](https://app.adscrawl.net/dashboard/)，打开 **Billing & Usage** 页面。你可以看到当前套餐、积分余额以及账户限制，包括云浏览器配置容量和并发运行额度。
+</Accordion>
+
+<Accordion title="积分用完后会发生什么？">
+  积分余额归零后，API 请求将返回 **402 INSUFFICIENT_CREDITS** 错误。你可以在控制面板的 [Billing & Usage](https://app.adscrawl.net/dashboard/) 部分充值积分或升级到更高套餐。请求不会被排队，在积分可用前会直接失败。
+</Accordion>

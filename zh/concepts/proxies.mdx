@@ -1,0 +1,163 @@
+---
+title: "代理路由：内置代理、区域代理与自定义代理"
+sidebarTitle: "代理"
+description: "每个 AdsCrawl 浏览器都通过代理运行。了解如何使用内置住宅代理、按国家路由，或提供你自己的代理服务器。"
+---
+
+每个 AdsCrawl 运行的浏览器（无论是浏览器任务、远程 CDP 会话，还是云浏览器）都会通过代理进行路由。住宅代理已内置到平台中，因此你无需任何配置即可获得合理的默认设置。当你需要流量来自特定国家，或者你的工作流需要专用代理服务时，AdsCrawl 通过两个可选字段 `countryCode` 和 `proxy` 为你提供精确控制。
+
+## 三种代理模式
+
+### 省略 - 自动可信代理
+
+如果你在发送浏览器任务或创建 CDP 会话时未指定 `countryCode` 或 `proxy`，AdsCrawl 会自动分配一个随机的可信住宅代理。这是最简单的选项，适用于地理位置不重要的情况。
+
+### `countryCode` - 托管区域代理
+
+将 `countryCode` 设置为两位 ISO 区域代码，以优先选择该区域的受信任代理出口。如果请求的区域没有可用的受信任代理，AdsCrawl 会自动回退到动态代理。
+
+将 `countryCode` 设置为 `"GLOBAL"` 以使用在 15 个热门区域之间轮转的动态出口。当你需要地理多样性而又不想固定到一个国家时，这会很有用。
+
+```json
+{
+  "url": "https://example.com/article",
+  "contentMode": "markdown",
+  "countryCode": "DE"
+}
+```
+
+支持的国家代码包括：
+
+| 代码 | 区域 |
+| --- | --- |
+| `US` | United States |
+| `BR` | Brazil |
+| `DE` | Germany |
+| `SG` | Singapore |
+| `JP` | Japan |
+| `CA` | Canada |
+| `AU` | Australia |
+| `GLOBAL` | Dynamic - 15 popular regions |
+
+<Tip>
+  使用 `countryCode` 时，还应设置 `locale` 和 `timezoneId` 以匹配目标区域。例如，将 `"DE"` 与 `locale: "de-DE"` 和 `timezoneId: "Europe/Berlin"` 配对，使浏览器的指纹与代理出口位置一致。
+</Tip>
+
+<Note>
+  对于使用 API key 启动云浏览器的调用者，`countryCode` **不可用**。API key 启动云浏览器需要在每次请求中提供明确的 `proxy` 对象。使用 Session/JWT Bearer 的调用者可以在启动云浏览器时使用 `countryCode`。
+</Note>
+
+### `proxy` - 使用你自己的代理
+
+提供 `proxy` 对象，使浏览器通过你自己的 HTTP 或 SOCKS5 代理服务器进行路由。当你拥有专用代理服务、需要粘性会话或需要特定 IP 时，请使用此选项。
+
+**带凭据的 HTTP 代理：**
+
+```json
+{
+  "proxy": {
+    "server": "http://proxy.example.com:8080",
+    "username": "proxy-user",
+    "password": "proxy-password"
+  }
+}
+```
+
+**使用拆分字段的 SOCKS5 代理：**
+
+```json
+{
+  "proxy": {
+    "protocol": "socks5",
+    "host": "proxy.example.com",
+    "port": 1080,
+    "username": "proxy-user",
+    "password": "proxy-password"
+  }
+}
+```
+
+**无需身份验证的代理：**
+
+```json
+{
+  "proxy": {
+    "server": "http://proxy.example.com:8080"
+  }
+}
+```
+
+### 自定义代理格式规则
+
+- 使用 `server` 表示完整 URL（`http://host:port` 或 `socks5://host:port`），**或者** 使用 `protocol` + `host` + `port`。在同一请求中不要同时使用两者
+- 端口号必须是 1 到 65535 之间的整数或整数字符串
+- **不要将凭据嵌入 URL 中** - 将 `username` 和 `password` 作为单独字段传递
+- `username` 和 `password` 必须一起提供；对于无需身份验证的代理，同时省略两者
+- `server` 中不允许使用路径、查询字符串或片段
+
+## 组合使用 `countryCode` 和 `proxy`
+
+`countryCode` 和 `proxy` 是互斥的。在同一请求中同时传递两者将返回 `400 COUNTRY_PROXY_CONFLICT`。请选择其中一种：
+
+<CodeGroup>
+
+```json 使用 countryCode
+{
+  "url": "https://example.com",
+  "countryCode": "JP"
+}
+```
+
+```json 使用 proxy
+{
+  "url": "https://example.com",
+  "proxy": {
+    "server": "http://proxy.example.com:8080",
+    "username": "user",
+    "password": "pass"
+  }
+}
+```
+
+</CodeGroup>
+
+## 示例：在 POST /html 请求中使用 countryCode
+
+<CodeGroup>
+
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/html" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "url": "https://example.com/article",
+    "contentMode": "markdown",
+    "countryCode": "US",
+    "locale": "en-US",
+    "timezoneId": "America/New_York",
+    "userAgentMode": "random",
+    "userAgentOs": "windows"
+  }'
+```
+
+```json 请求体
+{
+  "url": "https://example.com/article",
+  "contentMode": "markdown",
+  "countryCode": "US",
+  "locale": "en-US",
+  "timezoneId": "America/New_York",
+  "userAgentMode": "random",
+  "userAgentOs": "windows"
+}
+```
+
+</CodeGroup>
+
+## 代理故障行为
+
+<Warning>
+  **切勿移除 `proxy` 字段以绕过代理错误。** 代理故障不得回退到直接连接。AdsCrawl 在基础设施层面强制执行此策略，以保护你的真实 IP 并保持代理卫生。如果你的代理不可达，请在重试前修复配置或等待服务恢复。
+</Warning>
+
+当托管代理分配失败时，启动或任务请求会立即被拒绝。当自定义代理不可达时，请求将以 `502` 或 `503` 错误失败。检查错误代码，更正代理配置，然后重试。

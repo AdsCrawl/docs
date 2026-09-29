@@ -1,0 +1,154 @@
+---
+title: "POST /cdp/live-token — Issue a Live CDP Control Token"
+sidebarTitle: "Live Control Token"
+description: "Issue a single-use, 30-second control token to take live interactive control of an existing CDP session via a dedicated WebSocket connection."
+---
+
+When you need to step in and interact with a running CDP session in real time — for example to solve a CAPTCHA, review page state, or perform actions your automation cannot handle automatically — use these endpoints to issue a short-lived control token and open a live WebSocket connection to that session.
+
+---
+
+## POST /cdp/live-token
+
+Issue a single-use control token for an active CDP session. The returned `controlToken` is embedded in the `controlUrl` and expires 30 seconds after issuance. Pass `controlUrl` directly to a WebSocket constructor to begin live control.
+
+### Request headers
+
+<ParamField header="x-api-key" type="string" required>
+  Your full API key from the [dashboard](https://app.adscrawl.net/dashboard/). Must own the target session.
+</ParamField>
+
+<ParamField header="content-type" type="string" required>
+  Must be `application/json`.
+</ParamField>
+
+### Request body
+
+<ParamField body="sessionId" type="string" required>
+  The active CDP session ID you want to take live control of.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="ok" type="boolean">
+  `true` when the token was issued successfully.
+</ResponseField>
+
+<ResponseField name="controlUrl" type="string">
+  A `wss://` WebSocket URL with the single-use `controlToken` already embedded as a query parameter. Pass this directly to `new WebSocket(...)` — do not replace or modify the token.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="number">
+  Unix timestamp in milliseconds when the `controlToken` expires. The token is valid for 30 seconds and can only be used once.
+</ResponseField>
+
+### Request example
+
+<CodeGroup>
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/cdp/live-token" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{"sessionId": "SESSION_ID"}'
+```
+
+```json Body JSON
+{
+  "sessionId": "SESSION_ID"
+}
+```
+</CodeGroup>
+
+### Response example
+
+```json 200 OK
+{
+  "ok": true,
+  "controlUrl": "wss://api.adscrawl.net/cdp/live/SESSION_ID?controlToken=<single-use-token>",
+  "expiresAt": 1785726630000
+}
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Token issued; `controlUrl` and `expiresAt` are in the response body. |
+| `400`  | `sessionId` is missing from the request body. |
+| `401` / `403` | The API key is invalid or does not own the target session. |
+| `404` / `409` / `410` | The session is missing, stopping, or expired. |
+| `503`  | The session backend is unavailable. |
+| `500`  | Failed to issue or store the control token. |
+
+<Warning>
+  The `controlToken` expires after **30 seconds** and can only be consumed **once**. If the WebSocket connection fails or is not opened in time, call `POST /cdp/live-token` again to get a fresh token.
+</Warning>
+
+---
+
+## WS /cdp/live/:sessionId
+
+Open a live-control WebSocket connection to the target session. The server validates the `controlToken`, connects to the session backend, and then upgrades your client connection. Once connected, CDP messages are proxied bidirectionally and you have full interactive control.
+
+### Path parameters
+
+<ParamField path="sessionId" type="string" required>
+  The session ID embedded in the `controlUrl` returned by `POST /cdp/live-token`.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="controlToken" type="string" required>
+  The single-use token from `POST /cdp/live-token`. It must be used within 30 seconds of issuance and can only be consumed once.
+</ParamField>
+
+### JavaScript example
+
+```javascript JavaScript
+// Step 1: request a live control token
+const token = await fetch("https://api.adscrawl.net/cdp/live-token", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-api-key": "YOUR_API_KEY",
+  },
+  body: JSON.stringify({ sessionId: "SESSION_ID" }),
+}).then((r) => r.json());
+
+// Step 2: open the live control WebSocket using the returned controlUrl
+const socket = new WebSocket(token.controlUrl);
+
+socket.addEventListener("open", () => {
+  console.log("Live control session connected");
+});
+
+socket.addEventListener("close", (event) => {
+  console.log("Session closed:", event.code, event.reason);
+});
+```
+
+### WebSocket close reasons
+
+When the live-control WebSocket closes, the server sends one of the following reason codes:
+
+<Accordion title="Close reason codes">
+
+| Code | Reason | Cause |
+|------|--------|-------|
+| `1000` | `cdp_upstream_closed` | The upstream CDP session closed normally. |
+| `1000` | `idle_timeout` | The session exceeded the configured `idleTimeoutMs`. |
+| `1000` | `max_timeout` | The session exceeded the configured `maxSessionMs`. |
+| `1011` | `cdp_upstream_disconnected` | The upstream CDP connection dropped unexpectedly. |
+| `1011` | `cdp_upstream_error` | An error occurred on the upstream CDP connection. |
+
+</Accordion>
+
+| Status | Meaning |
+|--------|---------|
+| `101`  | WebSocket upgrade succeeded; live control is now active. |
+| `401`  | `controlToken` is invalid, expired, already used, or does not match `sessionId`. |
+| `404` / `409` / `410` | The session is missing, stopping, or expired. |
+| `502`  | The session backend could not be reached before the 101 upgrade. |
+| `503`  | The session backend or control infrastructure is unavailable. |
+
+<Info>
+  Live control tokens are designed for short bursts of manual or conditional interaction. For fully automated workflows, drive the session directly through `cdpBaseUrl` with Playwright or Puppeteer instead.
+</Info>

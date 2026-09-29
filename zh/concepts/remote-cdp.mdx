@@ -1,0 +1,143 @@
+---
+title: "Remote CDP：将任意 CDP 客户端连接到云浏览器"
+sidebarTitle: "Remote CDP"
+description: "启动专属的云端 Chromium 会话，并通过 Playwright、Puppeteer 或原始 CDP 连接，全托管，无需基础设施。"
+---
+
+Remote CDP 为你提供一个专属的托管 Chromium 会话，你可以使用任何兼容 CDP 的自动化库进行连接。通过 API 创建会话，获取 `cdpBaseUrl`，然后直接将其传给 `playwright.connectOverCDP()` 或 Puppeteer 的 `connect()`。从此，你所熟悉的所有 Playwright 或 Puppeteer API 都会像在本地一样工作：导航、点击、填写表单、拦截网络请求、提取数据，而 AdsCrawl 负责处理浏览器基础设施、代理和指纹。
+
+## 工作原理
+
+<Steps>
+  <Step title="创建会话">
+    发送 `POST /cdp/sessions`，传入期望的 `idleTimeoutMs`、`maxSessionMs` 和 `browserSettings`。API 会返回 `sessionId` 和已包含数据令牌的 `cdpBaseUrl`。
+
+    ```bash
+    curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
+      -H "content-type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "idleTimeoutMs": 600000,
+        "maxSessionMs": 3600000,
+        "browserSettings": {
+          "viewport": { "width": 1440, "height": 900 },
+          "countryCode": "GLOBAL",
+          "userAgentMode": "random",
+          "userAgentOs": "windows"
+        }
+      }'
+    ```
+
+    响应示例如下：
+
+    ```json
+    {
+      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+      "expiresAt": "2026-04-21T10:30:00.000Z",
+      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+    }
+    ```
+  </Step>
+  <Step title="使用 Playwright 或 Puppeteer 连接">
+    直接将 `cdpBaseUrl` 传入你的自动化库，无需额外配置。
+
+    <CodeGroup>
+
+    ```typescript Playwright (TypeScript)
+    import { chromium } from 'playwright';
+    
+    const browser = await chromium.connectOverCDP(
+      'https://api.adscrawl.net/cdp/sessions/SESSION_ID?token=DATA_TOKEN'
+    );
+    const page = await browser.newPage();
+    await page.goto('https://example.com');
+    const title = await page.title();
+    console.log(title);
+    await browser.close();
+    ```
+
+    ```javascript Puppeteer (JavaScript)
+    import puppeteer from 'puppeteer-core';
+    
+    const browser = await puppeteer.connect({
+      browserWSEndpoint:
+        'wss://api.adscrawl.net/cdp/sessions/SESSION_ID/devtools/browser/BROWSER_ID?token=DATA_TOKEN',
+    });
+    const page = await browser.newPage();
+    await page.goto('https://example.com');
+    console.log(await page.title());
+    await browser.close();
+    ```
+
+    ```javascript Raw CDP (JavaScript)
+    const discovery = await fetch(
+      'https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN'
+    ).then((res) => res.json());
+    
+    const socket = new WebSocket(discovery.webSocketDebuggerUrl);
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="自动化页面操作">
+    使用完整的 Playwright 或 Puppeteer API 进行导航、交互和数据提取，远程浏览器的行为与本地浏览器完全一致。
+
+    ```typescript
+    const page = await browser.newPage();
+    await page.goto('https://example.com/login');
+    await page.fill('#email', 'user@example.com');
+    await page.fill('#password', 'secret');
+    await page.click('button[type="submit"]');
+    await page.waitForNavigation();
+    const accountName = await page.textContent('.account-name');
+    ```
+  </Step>
+  <Step title="完成后删除会话">
+    调用 `DELETE /cdp/sessions/:sessionId` 立即终止浏览器并释放资源，而无需等待空闲或最大会话超时。
+
+    ```bash
+    curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
+      -H "x-api-key: YOUR_API_KEY"
+    ```
+  </Step>
+</Steps>
+
+## 安全模型
+
+Remote CDP 使用两个独立的令牌来保护你的会话：
+
+- **Data token** — 嵌入在 `cdpBaseUrl` 中，用于所有 CDP WebSocket 连接和发现请求。此令牌长期有效（与会话生命周期一致），权限范围为通过 CDP 读取和控制浏览器。
+- **Control token** (`controlToken`) — 由 `POST /cdp/live-token` 签发的单次使用令牌，用于实时交互式查看器访问。它在 **30 秒**后过期，且只能使用一次。每次需要打开实时查看器时，请请求新的 control token。
+
+<Warning>
+  切勿将 data token 或 API key 放入客户端代码、终端用户可访问的浏览器 URL 或公共日志中。请像对待 API key 一样保护 data token。
+</Warning>
+
+## 会话生命周期
+
+在创建会话时通过两个字段配置会话生命周期：
+
+| 字段 | 说明 |
+| --- | --- |
+| `idleTimeoutMs` | 如果在此持续时间内未检测到 CDP 活动，则终止会话。超过服务器上限的值会被截断。 |
+| `maxSessionMs` | 无论是否有活动，会话总时长的硬性上限。超过服务器上限的值会被截断。 |
+
+随时可以通过 `GET /cdp/sessions` 查询活跃会话，或通过 `DELETE /cdp/sessions/:sessionId` 删除特定会话。
+
+## Remote CDP 与 Cloud Browsers 的区别
+
+Remote CDP 会话是**临时的**，不保存任何配置文件，所有浏览器状态（cookies、local storage、历史记录）在会话结束时都会被丢弃。当你需要一个有状态的脚本会话，但不需要长期配置文件持久化时，请使用 Remote CDP。
+
+如果你需要保存浏览器配置文件，使 cookies、指纹设置和代理配置在多个会话之间持久化，请改用 [Cloud Browsers](/zh/concepts/cloud-browsers)。
+
+## API 参考
+
+<CardGroup cols={2}>
+  <Card title="CDP Sessions" icon="browser" href="/zh/api-reference/cdp-sessions">
+    创建、列出和删除专属 CDP 会话。
+  </Card>
+
+  <Card title="CDP Live Token" icon="key" href="/zh/api-reference/cdp-live-token">
+    签发单次使用的 control token 用于实时交互式查看器访问。
+  </Card>
+</CardGroup>

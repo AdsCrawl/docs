@@ -1,0 +1,172 @@
+---
+title: "Cloud Browsers: Persistent, Reusable Browser Profiles"
+sidebarTitle: "Cloud Browsers"
+description: "Save browser profiles with cookies, fingerprints, and proxy settings that persist across sessions — launch, stop, and reuse them as many times as you need."
+---
+
+Cloud browsers are saved browser profiles that retain their configuration — viewport, locale, fingerprint settings, cookies, and proxy preferences — between sessions. Unlike temporary Remote CDP sessions, a cloud browser profile persists after you stop the running instance. You can launch it again later, and it picks up exactly where it left off. This makes cloud browsers the right choice for workflows that require a consistent browser identity across multiple visits: account management, multi-session scraping, or any task where a persistent, recognizable browser persona matters.
+
+## Lifecycle states
+
+A cloud browser moves through four states during its lifetime:
+
+```text
+starting → running → stopping → stopped
+```
+
+- **`starting`** and **`stopping`** still reserve your running allowance — they are not free slots.
+- **`running`** is the only state where `connectUrl` is present in the API response.
+- **`stopped`** releases running allowance while the saved profile remains.
+
+Poll `GET /cloud-browsers/:id` to read the actual current state. Display `runtime.status` exactly as the API returns it; never infer or cache state locally.
+
+## Saved profiles vs. running sessions
+
+Saving a profile is free in terms of running quota — a stopped profile occupies a **saved profile slot** but not a **running slot**. Only browsers in `starting`, `running`, or `stopping` state consume your concurrent running allowance.
+
+Your plan's allowances are returned on every `GET /cloud-browsers` call:
+
+| Field | Meaning |
+|---|---|
+| `limit` | Maximum number of saved profiles your plan allows |
+| `runningLimit` | Maximum number of simultaneously running browsers |
+| `runningCount` | Current count of starting + running + stopping browsers |
+
+<Note>
+  The Free plan allows saving one profile but **cannot launch** a browser. A paid plan is required to start a cloud browser runtime.
+</Note>
+
+## Opening the interactive viewer
+
+When a cloud browser is `running`, the `runtime.connectUrl` field contains a URL you can open directly in your own browser to see and interact with the remote session in real time. This URL points to the live browser viewer and requires your profile owner's **session cookie** — an API key alone does not grant viewer access.
+
+<Warning>
+  **Closing the viewer tab does not stop billing.** The browser continues running — and consuming credits — until you explicitly call `POST /cloud-browsers/:id/stop`. Always stop the browser through the API or dashboard when you are done.
+</Warning>
+
+## Two ways to create and start
+
+### Option 1: Create then Start
+
+Use this approach when you want to save a profile for later or when you need fine-grained control over when the browser starts.
+
+<Steps>
+  <Step title="Create the profile">
+    `POST /cloud-browsers` saves the profile configuration and returns an `id`. The browser is **not** started yet and consumes no running quota.
+
+    ```bash
+    curl --fail-with-body -sS -X POST "https://api.adscrawl.net/cloud-browsers" \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "remark": "work profile",
+        "browserSettings": {
+          "viewport": { "width": 1440, "height": 900 }
+        }
+      }'
+    ```
+  </Step>
+
+  <Step title="Start the browser">
+    `POST /cloud-browsers/:id/start` launches the saved profile. Pass your proxy on **every** start request — saved proxy settings do not replace the required top-level `proxy` field for API key callers.
+
+    ```bash
+    curl --fail-with-body -sS -X POST \
+      "https://api.adscrawl.net/cloud-browsers/BROWSER_ID/start" \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "proxy": {
+          "server": "http://proxy.example.com:8080",
+          "username": "proxy-user",
+          "password": "proxy-password"
+        }
+      }'
+    ```
+
+    The endpoint waits for startup confirmation and returns `200` only once the browser reaches `running`.
+  </Step>
+</Steps>
+
+### Option 2: Launch in one step
+
+`POST /cloud-browsers/launch` creates the profile **and** starts the browser in a single request, waiting for `running` before returning `201`. Use this when you want to open a browser immediately without a separate create step.
+
+```bash
+curl --fail-with-body -sS --max-time 200 \
+  -X POST "https://api.adscrawl.net/cloud-browsers/launch" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "proxy": {
+      "server": "http://proxy.example.com:8080",
+      "username": "proxy-user",
+      "password": "proxy-password"
+    },
+    "tabs": ["https://example.com"]
+  }'
+```
+
+<Warning>
+  Each call to `POST /cloud-browsers/launch` creates a **new profile** — there is no idempotency key. If the request fails or the response is lost, inspect `GET /cloud-browsers` before retrying. Never automatically repeat a failed launch call without checking whether a profile was created.
+</Warning>
+
+## Proxy requirements
+
+Proxy rules differ depending on how you authenticate:
+
+<Tabs>
+  <Tab title="API key (X-API-Key)">
+    Every start request — including `/launch` and `/start` — **must** include a valid top-level `proxy` object. Saved `browserSettings.proxy`, a previous run's proxy, and `countryCode` cannot substitute for it.
+
+    ```json
+    {
+      "proxy": {
+        "server": "http://proxy.example.com:8080",
+        "username": "proxy-user",
+        "password": "proxy-password"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Session / JWT Bearer">
+    Dashboard and JWT Bearer callers may use either a custom `proxy` object **or** `countryCode` (a two-letter region code or `"GLOBAL"`). A session-authenticated start also requires `apiKeyId` for an active API key owned by the same user.
+
+    ```json
+    {
+      "apiKeyId": "YOUR_API_KEY_ID",
+      "countryCode": "GLOBAL"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  A proxy failure must **never** fall back to a direct connection. If your proxy is unreachable, fix it or wait for service recovery — do not remove the proxy field to work around the error.
+</Warning>
+
+## Credit billing
+
+Cloud browsers are billed at **1 credit per started minute**, rounded up, from the moment the browser successfully reaches `running` until stop is confirmed. A `202 stopping` response means shutdown is still in progress — credits continue until `runtime.status` is `stopped`. Poll `GET /cloud-browsers/:id` with a bounded retry loop to confirm the stop.
+
+Calling stop multiple times does not charge twice; repeated stops on an already-stopped profile return `200` with `runtime.status: "stopped"` at no cost.
+
+## API reference
+
+<CardGroup cols={3}>
+  <Card title="List Cloud Browsers" icon="list" href="/api-reference/cloud-browsers-list">
+    List saved profiles and read your saved and running quotas.
+  </Card>
+  <Card title="Create Profile" icon="plus" href="/api-reference/cloud-browsers-create">
+    Save a new browser profile without starting a runtime.
+  </Card>
+  <Card title="Launch" icon="rocket" href="/api-reference/cloud-browsers-launch">
+    Create and start a browser in one request, waiting for running.
+  </Card>
+  <Card title="Start" icon="play" href="/api-reference/cloud-browsers-start">
+    Start a previously saved profile and wait for running confirmation.
+  </Card>
+  <Card title="Stop" icon="stop" href="/api-reference/cloud-browsers-stop">
+    Stop a running browser and release its running quota slot.
+  </Card>
+</CardGroup>

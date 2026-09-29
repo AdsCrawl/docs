@@ -1,0 +1,105 @@
+---
+title: "AdsCrawl 积分、速率限制和并发上限"
+sidebarTitle: "Credits & Limits"
+description: "了解 AdsCrawl 积分的消耗方式、速率限制与并发上限的生效机制，以及哪些错误代码表示计费或容量问题。"
+---
+
+每个 AdsCrawl 套餐都包含积分额度和一组限制，用于控制你可以发起的请求数量、可同时运行的浏览器会话数量，以及可以保存的云浏览器配置数量。了解这些边界有助于你设计可靠的自动化流程，使其能够优雅地处理错误，避免在生产环境中遇到意外阻碍。
+
+## 积分消耗
+
+积分是 AdsCrawl 上所有操作的计费单位。下表说明了每种 API 类型的积分消耗方式。
+
+| 操作 | 积分消耗 | 消耗时机 |
+| --- | --- | --- |
+| `POST /html` | 每次请求 1 积分 | 请求验证通过后，执行开始前 |
+| `POST /screenshot` | 每次请求 1 积分 | 请求验证通过后，执行开始前 |
+| `POST /spa-extract` | 每次请求 1 积分 | 请求验证通过后，执行开始前 |
+| 云浏览器（运行中） | 每启动分钟 1 积分 | 从成功启动到确认停止 |
+
+<Warning>
+  积分一旦消耗即**不可退还**。如果浏览器任务请求在执行过程中失败（积分已经扣除后），积分不会退回。请在发送请求前验证输入，避免不必要的积分损失。
+</Warning>
+
+<Note>
+  云浏览器按**启动分钟**计费，向上取整。运行 90 秒的浏览器将消耗 2 积分。重复停止通知不会触发重复扣费：计费在第一次确认停止后即结束。
+</Note>
+
+## 速率限制
+
+AdsCrawl 对每个 API 密钥执行速率限制，以保护服务稳定性。超出速率限制时，API 返回 **HTTP 429**。请延迟后重试。
+
+<Tip>
+  收到 429 响应时，请实现**指数退避**策略。初始延迟 1 秒，每次重试加倍，直至合理上限（例如 30 秒），然后放弃。
+</Tip>
+
+### CDP 会话速率限制
+
+远程 CDP 会话对每个 API 密钥有并发限制。超出后将返回：
+
+```json
+{
+  "error": "CDP sessions per API key limit reached"
+}
+```
+
+HTTP 状态为 **429**，错误代码为 `SESSIONS_PER_API_KEY_LIMIT_REACHED`。在创建新会话前删除已有会话，或如果你的套餐允许，将负载分配到多个 API 密钥上。
+
+## 并发限制
+
+### 云浏览器并发
+
+每个用户账户都有一个 `runningLimit`，即同一时间内可处于活跃状态（`starting`、`running` 或 `stopping` 状态）的云浏览器会话数量上限。默认值为 **1**。
+
+你可以随时通过 `GET /cloud-browsers` 查看当前使用情况：
+
+```json
+{
+  "limit": 10,
+  "runningLimit": 1,
+  "runningCount": 0
+}
+```
+
+- **`limit`** —— 你的套餐允许保存的云浏览器配置数量
+- **`runningLimit`** —— 你的账户可同时运行的会话数量上限
+- **`runningCount`** —— 当前处于 `starting`、`running` 或 `stopping` 状态的会话数量，跨所有配置、页面和 API 密钥统计
+
+<Note>
+  `runningCount` 统计范围覆盖**所有**你的 API 密钥以及控制面板操作。处于 `stopping` 状态的会话仍会占用运行槽位，直到状态变为 `stopped`。
+</Note>
+
+当你尝试启动云浏览器但运行额度已满时，API 返回 **409 CLOUD_BROWSER_CONCURRENCY_LIMIT**：
+
+```json
+{
+  "error": "Cloud browser running limit reached",
+  "code": "CLOUD_BROWSER_CONCURRENCY_LIMIT"
+}
+```
+
+<Warning>
+  **降低 `runningLimit` 不会停止现有会话。** 它仅阻止新的启动操作，直到运行中的会话释放容量。当达到上限时，请先停止运行中的浏览器，再尝试启动新的会话。
+</Warning>
+
+## 错误代码参考
+
+以下错误代码表示计费或容量问题。请在你的应用中使用 HTTP 状态码和稳定的 `code` 字段进行错误处理，不要依赖可能变更的可读 `error` 消息。
+
+| HTTP | Code | 含义 | 操作 |
+| --- | --- | --- | --- |
+| 402 | `INSUFFICIENT_CREDITS` | 积分余额为零或不足以完成请求 | 在控制面板的 [Billing & Usage](https://app.adscrawl.net/dashboard/) 中充值 |
+| 402 | `PAID_PLAN_REQUIRED` | 该功能需要激活的付费套餐 | 从[控制面板](https://app.adscrawl.net/dashboard/)升级套餐 |
+| 409 | `CLOUD_BROWSER_CONCURRENCY_LIMIT` | 并发运行额度已满或设为零 | 启动新浏览器前先停止一个运行中的浏览器 |
+| 429 | _（多种）_ | 速率限制或单密钥会话限制已超出 | 等待并通过指数退避策略重试 |
+
+## 请求大小和参数限制
+
+以下硬限制适用于所有 API 请求。超出这些限制的请求将在消耗积分前被拒绝，返回 HTTP 400。
+
+| 限制 | 值 |
+| --- | --- |
+| 请求体大小 | 最大 1 MiB |
+| `timeoutMs` 参数 | 最大 3,600,000 毫秒（1 小时） |
+| 启动时的云浏览器标签页数量（`tabs` 数组） | 最多 8 个 URL |
+| Cookie 列表（`cookies` 数组） | 最多 10,000 条，且不超过 1 MiB 请求体上限 |

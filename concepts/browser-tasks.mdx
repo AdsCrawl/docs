@@ -1,0 +1,81 @@
+---
+title: "Browser Tasks: HTML, Screenshots, and Data Extraction"
+sidebarTitle: "Browser Tasks"
+description: "Synchronous, credit-metered requests that spin up a full browser and return rendered HTML, screenshots, or structured data — no session management needed."
+---
+
+Browser tasks are the simplest way to get rendered output from any URL. Each request spins up a fresh Chromium instance, navigates to your target page through a residential proxy, and returns a result synchronously — no session to create, no cleanup required. One credit is consumed after request validation but before the browser launches, so a malformed request body never costs you credits. Request bodies are limited to 1 MiB and `timeoutMs` can be set up to 3,600,000 ms (one hour) to handle slow or complex pages.
+
+## Task types
+
+AdsCrawl offers three browser task endpoints, each optimized for a different output:
+
+### HTML / Markdown
+
+`POST /html` renders the target page and returns one of three content modes:
+
+- **`html`** (default) — the full rendered page HTML, or just the matched element when `selector` is set
+- **`markdown`** — Readability-extracted article content converted to Markdown
+- **`json`** — a structured Readability article object with `title`, `byline`, `excerpt`, `textContent`, `length`, and more
+
+Use `waitUntil: "domcontentloaded"` for most HTML extraction tasks — it is faster than waiting for images and stylesheets to load. Switch to `"networkidle"` only when the content you need is fetched by XHR after page load.
+
+### Screenshots
+
+`POST /screenshot` captures a PNG image of the rendered page and streams it back directly as `image/png`. Key options:
+
+- **`fullPage: true`** (default) — captures the entire scrollable page
+- **`selector`** — captures only the first element matching the CSS selector; returns `422 CONTENT_SELECTOR_NOT_FOUND` if the selector does not match
+- **`viewport`** — set width and height to control the rendering viewport before capture
+
+### SPA Extraction
+
+`POST /spa-extract` extracts structured fields from dynamic single-page applications. You can define your own fields, run page actions (click, fill, scroll) before extraction, and use `waitFor` to wait for an element or text to appear. Two modes are available:
+
+- **`inspect`** — returns page candidates and a suggested field plan without consuming extra credits
+- **`extract`** — returns the data defined in your `fields` map or a named `template`
+
+AdsCrawl maintains a catalog of ready-made site templates (e.g., `similarweb-overview`, `google-trends-explore`, `chrome-web-store-app-info`). Retrieve the full list with `GET /spa-extract/templates`.
+
+## How credits work
+
+One credit is deducted per browser task request. The charge happens **after validation** (so bad requests are free) but **before the browser launches** (so navigation failures still cost one credit). Check your balance in the [dashboard](https://app.adscrawl.net/dashboard/) before running large batches.
+
+## Proxy behavior
+
+Every browser task runs through a proxy. You control which proxy is used with two optional fields:
+
+| Setting | Behavior |
+|---|---|
+| Neither field set | Random trusted residential proxy assigned automatically |
+| `countryCode: "US"` | Managed proxy preferring a trusted exit in that region, with dynamic fallback |
+| `countryCode: "GLOBAL"` | Dynamic exit rotating across 15 popular regions |
+| `proxy` object | Your own HTTP or SOCKS5 proxy server |
+
+`countryCode` and `proxy` are mutually exclusive — pass one or the other, never both.
+
+## Request limits
+
+| Limit | Value |
+|---|---|
+| Request body | 1 MiB maximum |
+| `timeoutMs` | 1 – 3,600,000 ms |
+| Supported ports | 80 and 443 only |
+
+<Note>
+  Browser tasks are **stateless** — each request creates a fresh browser context with no memory of previous visits. If you need to maintain cookies, local storage, or a logged-in session across multiple pages, use [Remote CDP](/concepts/remote-cdp) or [Cloud Browsers](/concepts/cloud-browsers) instead.
+</Note>
+
+## API reference
+
+<CardGroup cols={3}>
+  <Card title="POST /html" icon="code" href="/api-reference/html">
+    Fetch rendered HTML, Markdown, or structured article JSON from any URL.
+  </Card>
+  <Card title="POST /screenshot" icon="camera" href="/api-reference/screenshot">
+    Capture a full-page or element-level PNG screenshot.
+  </Card>
+  <Card title="POST /spa-extract" icon="table" href="/api-reference/spa-extract">
+    Extract structured fields from dynamic SPAs with optional templates and actions.
+  </Card>
+</CardGroup>

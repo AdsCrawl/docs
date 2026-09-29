@@ -1,0 +1,216 @@
+---
+title: "Automate Browsers with Playwright via Remote CDP Sessions"
+sidebarTitle: "Playwright Automation"
+description: "Connect Playwright or Puppeteer to a remote AdsCrawl cloud browser over CDP to run full multi-step automation through residential proxies."
+---
+
+Connect Playwright or Puppeteer to a dedicated cloud browser over the Chrome DevTools Protocol (CDP) for multi-step automation that goes beyond single-page fetching. AdsCrawl provisions a real Chromium instance behind a residential proxy, returns a `cdpBaseUrl` you connect to directly, and charges only for the time the session is active.
+
+## Full automation flow
+
+<Steps>
+  <Step title="Create a CDP session">
+    Send a `POST /cdp/sessions` request with your desired browser settings. The API returns a `sessionId` and a `cdpBaseUrl` that includes an embedded data token.
+
+    ```bash
+    curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
+      -H "content-type: application/json" \
+      -H "x-api-key: $ADSCRAWL_API_KEY" \
+      -d '{
+        "idleTimeoutMs": 300000,
+        "maxSessionMs": 1800000,
+        "browserSettings": {
+          "countryCode": "US",
+          "userAgentMode": "random",
+          "viewport": { "width": 1440, "height": 900 }
+        }
+      }'
+    ```
+
+    Response:
+
+    ```json
+    {
+      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+      "expiresAt": "2026-04-21T10:30:00.000Z",
+      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+    }
+    ```
+  </Step>
+  <Step title="Connect Playwright using cdpBaseUrl">
+    Pass `cdpBaseUrl` directly to `chromium.connectOverCDP()`. Playwright handles the WebSocket handshake; you don't need to construct any URLs manually.
+  </Step>
+  <Step title="Automate: navigate, click, fill, wait">
+    Use the full Playwright API — `page.goto()`, `page.fill()`, `page.click()`, `page.waitForSelector()`, and everything else. The browser runs in AdsCrawl's infrastructure, routed through the proxy you configured.
+  </Step>
+  <Step title="Collect your results">
+    Read DOM content, take screenshots, capture network responses, or export cookies and storage — whatever your automation needs.
+  </Step>
+  <Step title="Close the browser and delete the session">
+    Call `browser.close()` to release Playwright's connection, then `DELETE /cdp/sessions/:sessionId` to terminate the cloud browser and stop billing.
+  </Step>
+</Steps>
+
+## TypeScript example
+
+<CodeGroup>
+```typescript TypeScript (Playwright)
+import { chromium } from 'playwright';
+
+async function main() {
+  // 1. Create a CDP session
+  const sessionRes = await fetch('https://api.adscrawl.net/cdp/sessions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': process.env.ADSCRAWL_API_KEY!,
+    },
+    body: JSON.stringify({
+      idleTimeoutMs: 300000,
+      maxSessionMs: 1800000,
+      browserSettings: {
+        countryCode: 'US',
+        userAgentMode: 'random',
+        viewport: { width: 1440, height: 900 },
+      },
+    }),
+  });
+  const session = await sessionRes.json();
+
+  // 2. Connect Playwright
+  const browser = await chromium.connectOverCDP(session.cdpBaseUrl);
+  const page = await browser.newPage();
+
+  // 3. Automate
+  await page.goto('https://example.com/login');
+  await page.fill('#email', 'user@example.com');
+  await page.fill('#password', 'secret');
+  await page.click('button[type=submit]');
+  await page.waitForSelector('.dashboard');
+
+  // 4. Collect results
+  const title = await page.title();
+  console.log('Dashboard title:', title);
+
+  // 5. Clean up
+  await browser.close();
+  await fetch(
+    `https://api.adscrawl.net/cdp/sessions/${session.sessionId}`,
+    { method: 'DELETE', headers: { 'x-api-key': process.env.ADSCRAWL_API_KEY! } }
+  );
+}
+
+main();
+```
+
+```python Python (Playwright)
+import os
+from playwright.sync_api import sync_playwright
+import requests
+
+# 1. Create a CDP session
+session_res = requests.post(
+    'https://api.adscrawl.net/cdp/sessions',
+    headers={'x-api-key': os.environ['ADSCRAWL_API_KEY']},
+    json={
+        'idleTimeoutMs': 300000,
+        'maxSessionMs': 1800000,
+        'browserSettings': {
+            'countryCode': 'US',
+            'userAgentMode': 'random',
+            'viewport': {'width': 1440, 'height': 900},
+        },
+    },
+)
+session = session_res.json()
+
+# 2. Connect and automate
+with sync_playwright() as p:
+    browser = p.chromium.connect_over_cdp(session['cdpBaseUrl'])
+    page = browser.new_page()
+
+    # 3. Navigate and interact
+    page.goto('https://example.com/login')
+    page.fill('#email', 'user@example.com')
+    page.fill('#password', 'secret')
+    page.click('button[type=submit]')
+    page.wait_for_selector('.dashboard')
+
+    # 4. Collect results
+    print('Dashboard title:', page.title())
+
+    # 5. Close browser
+    browser.close()
+
+# Delete the session
+requests.delete(
+    f"https://api.adscrawl.net/cdp/sessions/{session['sessionId']}",
+    headers={'x-api-key': os.environ['ADSCRAWL_API_KEY']},
+)
+```
+</CodeGroup>
+
+## Session limits and 429 errors
+
+Each API key has a maximum number of concurrent CDP sessions. Attempting to create a new session when the limit is reached returns `429`:
+
+```json
+{
+  "error": "CDP sessions per API key limit reached"
+}
+```
+
+List your active sessions to inspect what's running before creating new ones:
+
+```bash
+curl -sS "https://api.adscrawl.net/cdp/sessions" \
+  -H "x-api-key: $ADSCRAWL_API_KEY"
+```
+
+Delete any sessions you no longer need, then retry.
+
+## Session timeouts
+
+<Tip>
+  Set `idleTimeoutMs` to automatically terminate the session after a period of inactivity. This prevents runaway costs if your automation crashes before reaching the cleanup step. Values above the server cap are automatically clamped.
+</Tip>
+
+Use `maxSessionMs` as a hard wall-clock limit for long-running automations. Both timeouts are enforced server-side — no client-side keepalive is required.
+
+## Data token security
+
+<Warning>
+  The `cdpBaseUrl` contains a data token that grants direct access to your browser session's CDP WebSocket. Treat it like a credential: never log it, embed it in client-side code, or include it in URLs that appear in browser history. Keep it server-side only.
+</Warning>
+
+## browserSettings reference
+
+<Accordion title="browserSettings fields">
+  <ParamField body="countryCode" type="string">
+    Managed proxy region. `"GLOBAL"` picks from 15 popular regions. A two-letter code (e.g. `"US"`, `"DE"`) prefers a trusted proxy with dynamic fallback. Cannot be combined with `proxy`.
+  </ParamField>
+  <ParamField body="viewport" type="object">
+    Browser window size, e.g. `{ "width": 1440, "height": 900 }`.
+  </ParamField>
+  <ParamField body="userAgentMode" type='"random" | "custom"'>
+    Set to `"random"` for a server-selected realistic User-Agent string.
+  </ParamField>
+  <ParamField body="userAgentOs" type='"windows" | "macos"'>
+    Operating system for random User-Agent selection. Defaults to `"windows"`.
+  </ParamField>
+  <ParamField body="locale" type="string">
+    Browser locale, such as `"en-US"`.
+  </ParamField>
+  <ParamField body="timezoneId" type="string">
+    IANA timezone ID, such as `"America/New_York"`.
+  </ParamField>
+  <ParamField body="cookies" type="cookies[]">
+    Cookies injected into the browser context before any navigation.
+  </ParamField>
+  <ParamField body="fingerprint" type="fingerprint">
+    Browser fingerprint settings. When omitted, `canvas` and `webGlImage` default to `real`; other signals use a coherent randomised profile.
+  </ParamField>
+  <ParamField body="proxy" type="proxy">
+    Custom proxy configuration. Cannot be combined with `countryCode`.
+  </ParamField>
+</Accordion>

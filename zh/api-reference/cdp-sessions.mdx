@@ -1,0 +1,465 @@
+---
+title: "CDP Session API — 创建、列出、连接与删除"
+sidebarTitle: "CDP Sessions"
+description: "创建、列出和删除专用 Chromium CDP 会话，然后通过 Playwright、Puppeteer 或原始 CDP WebSocket 使用住宅代理进行连接。"
+---
+
+这些端点让你在云端 provision 专用的 Chromium 实例，并通过 Chrome DevTools Protocol（CDP）进行控制。使用你的 `x-api-key` 来创建、列出和删除会话。一个独立的数据令牌内嵌在每个 `cdpBaseUrl` 中，用于认证发现端点和 CDP WebSocket，确保你的主 API 密钥永远不会暴露在浏览器代码中。
+
+---
+
+## POST /cdp/sessions
+
+创建一个新的专用 CDP 会话。服务器会启动一个 Chromium 实例，应用你的 `browserSettings`，然后返回一个 `cdpBaseUrl`，你可以直接将其传递给 `playwright.connectOverCDP()` 或用于手动 CDP 发现。
+
+### 请求头
+
+<ParamField header="x-api-key" type="string" required>
+  你在 [dashboard](https://app.adscrawl.net/dashboard/) 中的完整 API 密钥。
+</ParamField>
+
+<ParamField header="content-type" type="string" required>
+  必须为 `application/json`。
+</ParamField>
+
+### 请求体
+
+<ParamField body="idleTimeoutMs" type="number">
+  会话在空闲多长时间（毫秒）后被终止。高于服务器上限的值将被静默截断。
+</ParamField>
+
+<ParamField body="maxSessionMs" type="number">
+  会话的最大总生命周期（毫秒）。高于服务器上限的值将被静默截断。
+</ParamField>
+
+<ParamField body="browserSettings" type="object">
+  Chromium 实例启动时应用的浏览器配置。
+
+  <Expandable title="browserSettings 字段">
+    <ParamField body="viewport" type="object">
+      浏览器窗口尺寸：`{ "width": number, "height": number }`。CDP 会话将这些值作为 `--window-size` 启动参数应用。
+    </ParamField>
+
+    <ParamField body="locale" type="string">
+      浏览器区域设置，例如 `en-US`。
+    </ParamField>
+
+    <ParamField body="timezoneId" type="string">
+      IANA 时区标识符，例如 `Asia/Shanghai`。
+    </ParamField>
+
+    <ParamField body="geolocation" type="object">
+      地理坐标：`{ "latitude": number, "longitude": number }`。
+    </ParamField>
+
+    <ParamField body="proxy" type="object">
+      自定义代理配置。不能与 `countryCode` 同时使用。
+
+      <Expandable title="proxy 字段">
+        <ParamField body="server" type="string">
+          完整的代理 URL，例如 `http://host:port` 或 `socks5://host:port`。不要在此处嵌入凭据，请通过 `username` 和 `password` 单独提供。不能与 `host` 同时使用。
+        </ParamField>
+
+        <ParamField body="protocol" type="string">
+          代理协议（分开填写形式）—— `http` 或 `socks5`。
+        </ParamField>
+
+        <ParamField body="host" type="string">
+          代理主机（分开填写形式）。
+        </ParamField>
+
+        <ParamField body="port" type="number">
+          代理端口（分开填写形式，1–65535）。
+        </ParamField>
+
+        <ParamField body="username" type="string">
+          代理用户名。
+        </ParamField>
+
+        <ParamField body="password" type="string">
+          代理密码。
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField body="countryCode" type="string">
+      托管代理区域。使用 `"GLOBAL"` 自动选择一个热门区域，或使用特定区域代码获取带动态回退的可信代理。省略此字段将随机选择一个可信代理。
+    </ParamField>
+
+    <ParamField body="userAgent" type="string">
+      覆盖默认的 User-Agent 字符串。
+    </ParamField>
+
+    <ParamField body="userAgentMode" type="string">
+      设置为 `"random"` 让服务器从其 User-Agent 库中选择。未提供 User-Agent 的请求默认使用 `"random"`。
+    </ParamField>
+
+    <ParamField body="userAgentOs" type="string">
+      当 `userAgentMode` 为 `"random"` 时使用的操作系统。接受 `"windows"`（默认）或 `"macos"`。
+    </ParamField>
+
+    <ParamField body="fingerprint" type="object">
+      CDP 指纹覆盖。省略时，`canvas` 和 `webGlImage` 默认为 `real`；所有其他信号均从一致的随机化配置文件中生成。
+
+      <Expandable title="fingerprint 字段">
+        <ParamField body="webRtc" type="string">
+          `"forward"` 使用代理出口地址；也接受 `"real"` 或 `"disabled"`。
+        </ParamField>
+
+        <ParamField body="webGl" type="string">
+          WebGL vendor 和 renderer 元数据：`"random"` 或 `"real"`。
+        </ParamField>
+
+        <ParamField body="webGpu" type="string">
+          `"random"` 遵循 WebGL GPU 选择。也接受 `"real"` 或 `"disabled"`。当 `webGlImage` 为 `"real"` 时，不能为 `"random"`。
+        </ParamField>
+
+        <ParamField body="webGlImage" type="string">
+          WebGL 图像噪声：`"random"` 或 `"real"`。
+        </ParamField>
+
+        <ParamField body="canvas" type="string">
+          Canvas 噪声：`"random"` 或 `"real"`。
+        </ParamField>
+
+        <ParamField body="audioContext" type="string">
+          音频指纹噪声：`"random"` 或 `"real"`。
+        </ParamField>
+
+        <ParamField body="clientRects" type="string">
+          布局测量噪声：`"random"` 或 `"real"`。
+        </ParamField>
+
+        <ParamField body="speechVoices" type="string">
+          与操作系统匹配的语音列表：`"random"` 或 `"real"`。
+        </ParamField>
+
+        <ParamField body="fonts" type="string">
+          与操作系统匹配的字体列表：`"random"` 或 `"real"`。
+        </ParamField>
+
+        <ParamField body="hardware" type="string">
+          CPU 线程数和内存（作为一对生成）：`"random"` 或 `"real"`。
+        </ParamField>
+
+        <ParamField body="doNotTrack" type="string">
+          Do Not Track 偏好：`"random"`、`"enabled"` 或 `"disabled"`。
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField body="cookies" type="array">
+      在会话启动前注入浏览器上下文的 Cookie。
+
+      <Expandable title="cookie 字段">
+        <ParamField body="name" type="string" required>
+          Cookie 名称。
+        </ParamField>
+
+        <ParamField body="value" type="string" required>
+          Cookie 值。
+        </ParamField>
+
+        <ParamField body="domain" type="string" required>
+          目标域名，例如 `.example.com`。
+        </ParamField>
+
+        <ParamField body="path" type="string">
+          Cookie 路径。默认为 `/`。
+        </ParamField>
+
+        <ParamField body="secure" type="boolean">
+          为 `true` 时，Cookie 仅通过 HTTPS 发送。
+        </ParamField>
+
+        <ParamField body="httpOnly" type="boolean">
+          为 `true` 时，Cookie 对客户端 JavaScript 不可访问。
+        </ParamField>
+
+        <ParamField body="sameSite" type="string">
+          SameSite 属性值。
+        </ParamField>
+
+        <ParamField body="session" type="boolean">
+          设置为 `true` 表示会话 Cookie。
+        </ParamField>
+
+        <ParamField body="expirationDate" type="number">
+          Unix 过期时间戳（秒）。也接受 `expires` 或 `expiry`。
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### 响应
+
+<ResponseField name="sessionId" type="string">
+  活跃会话的唯一标识符。用于所有后续的列出、删除和 CDP 请求。
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string">
+  会话将过期的 RFC 3339 时间戳。
+</ResponseField>
+
+<ResponseField name="cdpBaseUrl" type="string">
+  此会话的完整 base URL。直接传递给 `playwright.connectOverCDP()`。它已经包含作为查询参数的数据令牌——不要替换或追加你的 API 密钥。
+</ResponseField>
+
+<Note>
+  `cdpBaseUrl` 携带一个内嵌的数据令牌，用于授权 CDP 访问。切勿将该令牌替换为你的 `x-api-key`。妥善存储它，并像对待凭据一样对待它。
+</Note>
+
+### 请求示例
+
+<CodeGroup>
+
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "idleTimeoutMs": 600000,
+    "maxSessionMs": 3600000,
+    "browserSettings": {
+      "viewport": { "width": 1440, "height": 900 },
+      "countryCode": "GLOBAL",
+      "userAgentMode": "random",
+      "userAgentOs": "windows"
+    }
+  }'
+```
+
+```json Body JSON
+{
+  "idleTimeoutMs": 600000,
+  "maxSessionMs": 3600000,
+  "browserSettings": {
+    "viewport": { "width": 1440, "height": 900 },
+    "countryCode": "GLOBAL",
+    "userAgentMode": "random",
+    "userAgentOs": "windows"
+  }
+}
+```
+
+</CodeGroup>
+
+### 响应示例
+
+<CodeGroup>
+
+```json 201 Created
+{
+  "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+  "expiresAt": "2026-04-21T10:30:00.000Z",
+  "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+}
+```
+
+```json 429 Rate Limited
+{
+  "error": "CDP sessions per API key limit reached"
+}
+```
+
+</CodeGroup>
+
+| Status | 含义 |
+| --- | --- |
+| `201` | 会话创建成功。 |
+| `400` | 托管区域、自定义代理或随机 User-Agent 参数无效。 |
+| `401` | `x-api-key` 缺失或无效。 |
+| `429` | API 密钥已达到并发 CDP 会话限制。 |
+| `502` | 浏览器后端拒绝了请求体、返回了过大的结果，或无法启动浏览器。 |
+| `503` | 总容量已超出，或浏览器后端不可用。 |
+| `504` | 会话启动或队列超时。 |
+| `500` | 未分类的内部错误。 |
+
+---
+
+## GET /cdp/sessions
+
+列出与你的 API 密钥关联的所有活跃 CDP 会话。
+
+### 请求头
+
+<ParamField header="x-api-key" type="string" required>
+  你在 [dashboard](https://app.adscrawl.net/dashboard/) 中的完整 API 密钥。
+</ParamField>
+
+### 请求示例
+
+```bash cURL
+curl -sS "https://api.adscrawl.net/cdp/sessions" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+### 响应示例
+
+```json 200 OK
+{
+  "ok": true,
+  "data": [
+    {
+      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+      "expiresAt": "2026-04-21T10:30:00.000Z",
+      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+    }
+  ]
+}
+```
+
+| Status | 含义 |
+| --- | --- |
+| `200` | 当前密钥的会话数组。 |
+| `401` | `x-api-key` 缺失或无效。 |
+| `500` | 无法读取会话或其数据令牌。 |
+
+---
+
+## DELETE /cdp/sessions/:sessionId
+
+立即终止 CDP 会话并释放其容量。
+
+### 请求头
+
+<ParamField header="x-api-key" type="string" required>
+  你在 [dashboard](https://app.adscrawl.net/dashboard/) 中的完整 API 密钥。
+</ParamField>
+
+### 路径参数
+
+<ParamField path="sessionId" type="string" required>
+  要终止的会话 ID，由 `POST /cdp/sessions` 或 `GET /cdp/sessions` 返回。
+</ParamField>
+
+### 请求示例
+
+```bash cURL
+curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+### 响应示例
+
+<CodeGroup>
+
+```json 200 Deleted
+{
+  "ok": true
+}
+```
+
+```json 404 Not Found
+{
+  "error": "CDP session not found"
+}
+```
+
+</CodeGroup>
+
+| Status | 含义 |
+| --- | --- |
+| `200` | 会话删除成功。 |
+| `401` | `x-api-key` 缺失或无效。 |
+| `403` | 该会话不属于当前 API 密钥。 |
+| `404` | 会话 ID 未找到。 |
+| `409` | 会话已在停止过程中。 |
+| `410` | 会话已过期。 |
+| `503` | 分配的浏览器后端不可用。 |
+
+<Tip>
+  当自动化完成时，请务必删除会话。未使用的会话会一直占用你的并发限制，直到过期或被显式删除。
+</Tip>
+
+---
+
+## GET /cdp/sessions/:sessionId/json/version
+
+检索会话的 Chrome DevTools Protocol 发现 JSON。响应包含一个 `webSocketDebuggerUrl`，已预重写为公共的、会话范围的 CDP WebSocket 路径——直接使用它，无需手动构造 URL。
+
+### 路径参数
+
+<ParamField path="sessionId" type="string" required>
+  由 `POST /cdp/sessions` 或 `GET /cdp/sessions` 返回的会话 ID。
+</ParamField>
+
+### 查询参数
+
+<ParamField query="token" type="string" required>
+  创建会话时返回的 `cdpBaseUrl` 中已内嵌的数据令牌。请勿在此处替换为你的 `x-api-key`。
+</ParamField>
+
+### 请求示例
+
+```bash cURL
+curl -sS "https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN"
+```
+
+### 响应示例
+
+```json 200 OK
+{
+  "Browser": "Chrome/136.0.0.0",
+  "Protocol-Version": "1.3",
+  "User-Agent": "Mozilla/5.0 ...",
+  "V8-Version": "13.6.233.8",
+  "WebKit-Version": "537.36 (@revision)",
+  "webSocketDebuggerUrl": "wss://api.adscrawl.net/cdp/sessions/SESSION_ID/devtools/browser/BROWSER_ID?token=<data-token>"
+}
+```
+
+| Status | 含义 |
+| --- | --- |
+| `200` | Chrome 发现 JSON，包含已重写的 `webSocketDebuggerUrl`。 |
+| `401` | 数据令牌缺失或无效。 |
+| `404` / `409` / `410` | 会话缺失、正在停止或已过期。 |
+| `502` | 无法从云端后端获取上游 CDP 发现。 |
+| `503` | 会话后端不可用。 |
+
+---
+
+## WS /cdp/sessions/:sessionId/devtools/browser/:browserId
+
+升级到浏览器 CDP 端点的 WebSocket 连接。CDP 消息在你的客户端和云端运行的 Chromium 实例之间双向代理。直接使用发现端点返回的 `webSocketDebuggerUrl`，而非手动构造此 URL。
+
+### 路径参数
+
+<ParamField path="sessionId" type="string" required>
+  当前 CDP 会话 ID。
+</ParamField>
+
+<ParamField path="browserId" type="string" required>
+  发现端点的浏览器目标 ID。建议直接复制完整的 `webSocketDebuggerUrl`，而非自己组装此路径。
+</ParamField>
+
+### 查询参数
+
+<ParamField query="token" type="string" required>
+  用于发现的同一个数据令牌——内嵌在 `cdpBaseUrl` 中，也在发现端点返回的 `webSocketDebuggerUrl` 中。
+</ParamField>
+
+### JavaScript 示例
+
+```javascript JavaScript
+// Step 1: fetch the discovery document
+const discovery = await fetch(
+  "https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN"
+).then((response) => response.json());
+
+// Step 2: open a WebSocket using the pre-built URL
+const socket = new WebSocket(discovery.webSocketDebuggerUrl);
+
+socket.addEventListener("open", () => {
+  console.log("CDP WebSocket connected");
+});
+```
+
+| Status | 含义 |
+| --- | --- |
+| `101` | WebSocket 升级成功；CDP 消息现在双向代理。 |
+| `401` | 数据令牌缺失或无效。 |
+| `404` / `409` / `410` | 会话缺失、正在停止或已过期。 |
+| `502` | 云端后端 CDP 连接在 101 升级前失败。 |
+| `503` | 会话后端不可用。 |

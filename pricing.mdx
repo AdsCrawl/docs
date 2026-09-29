@@ -1,0 +1,92 @@
+---
+title: "AdsCrawl Pricing: Free, Hobby, Starter, and Pro Plans"
+sidebarTitle: "Pricing"
+description: "Compare Free, Hobby, Starter, and Pro plans. Choose the credit allowance, Cloud Browser profiles, and API keys that fit your automation needs."
+---
+
+AdsCrawl uses a credit-based pricing model: every plan comes with a monthly credit allowance (or a one-time grant on Free) that you spend as you use the API. Browser task requests each consume one credit, and Cloud Browsers bill at one credit per started minute. Pick the plan that matches your volume — start on Free to explore the APIs, then move to a paid tier when you need more credits, more saved browser profiles, or more API keys.
+
+<CardGroup cols={2}>
+  <Card title="Free" icon="gift">
+    **$0** — no monthly fee
+
+    - **500** one-time credits
+    - **1** Cloud Browser profile _(save now; upgrade to launch)_
+    - **1** API key
+
+    [Start free →](https://app.adscrawl.net/register/)
+  </Card>
+
+  <Card title="Hobby" icon="code">
+    **$9 / month**
+
+    - **3,000** credits per month
+    - **20** Cloud Browser profiles
+    - **3** API keys
+
+    [Choose Hobby →](https://app.adscrawl.net/register/)
+  </Card>
+
+  <Card title="Starter" icon="rocket">
+    **$49 / month** ⭐ Recommended
+
+    - **100,000** credits per month
+    - **50** Cloud Browser profiles
+    - **10** API keys
+
+    [Choose Starter →](https://app.adscrawl.net/register/)
+  </Card>
+
+  <Card title="Pro" icon="building">
+    **$199 / month**
+
+    - **500,000** credits per month
+    - **200** Cloud Browser profiles
+    - **30** API keys
+
+    [Choose Pro →](https://app.adscrawl.net/register/)
+  </Card>
+</CardGroup>
+
+<Note>
+  The Free plan lets you **save** one Cloud Browser profile, but you need an active paid plan to **launch** it. Upgrade at any time from the [dashboard](https://app.adscrawl.net/dashboard/).
+</Note>
+
+<Info>
+  **Annual billing coming soon.** Monthly billing is currently the only available cycle. Check the dashboard for updates on annual pricing.
+</Info>
+
+## Frequently Asked Questions
+
+<Accordion title="Do credits renew every month?">
+  Yes, on all paid plans. Credits reset at the start of each billing cycle — 3,000 on Hobby, 100,000 on Starter, and 500,000 on Pro. The Free plan's 500 credits are a **one-time grant** and do not renew.
+</Accordion>
+
+<Accordion title="Can I run a Cloud Browser on the Free plan?">
+  You can **save** one Cloud Browser profile on the Free plan, but you need an active paid plan to **launch** it. Concurrent run limits for paid plans are configured on your account. Upgrade to Hobby or above to start running browsers.
+</Accordion>
+
+<Accordion title="What counts as one credit?">
+  Each browser task request (POST `/html`, POST `/screenshot`, POST `/spa-extract`) consumes **1 credit** when the request passes validation and before execution begins. Cloud Browsers consume **1 credit per started minute**, counted from a successful start until the browser stops. Credits are not refunded if a request fails after consumption has already occurred.
+</Accordion>
+
+<Accordion title="How many API keys are included?">
+  Each plan includes a different API key allowance:
+
+  | Plan    | API Keys |
+  |---------|----------|
+  | Free    | 1        |
+  | Hobby   | 3        |
+  | Starter | 10       |
+  | Pro     | 30       |
+
+  Keep your API keys on a trusted server or in a secret manager — never expose them in client-side code, URLs, or logs.
+</Accordion>
+
+<Accordion title="Where do I see my plan and remaining credits?">
+  Sign in to the [AdsCrawl dashboard](https://app.adscrawl.net/dashboard/) and open **Billing & Usage**. You'll see your current plan, credit balance, and account limits including Cloud Browser profile capacity and concurrent run allowance.
+</Accordion>
+
+<Accordion title="What happens if I run out of credits?">
+  Once your credit balance reaches zero, API requests return a **402 INSUFFICIENT\_CREDITS** error. Top up your balance or upgrade to a higher plan from the [Billing & Usage](https://app.adscrawl.net/dashboard/) section of the dashboard. Requests are not queued — they fail immediately until credits are available.
+</Accordion>

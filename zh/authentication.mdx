@@ -1,0 +1,123 @@
+---
+title: "API 密钥、会话 JWT 和 CDP 令牌 - AdsCrawl 认证指南"
+sidebarTitle: "认证"
+description: "了解如何通过 API 密钥、会话 JWT 和 CDP 数据令牌安全地认证每个 AdsCrawl 请求。涵盖凭证类型、发送方式及常见错误处理。"
+---
+
+每个发送到 AdsCrawl API 的请求都必须携带凭证。对于几乎所有工作流，该凭证都是你的 API 密钥——一个在 `x-api-key` 请求头中发送的长期有效密钥。还有两种更窄的令牌类型用于特定场景：会话 JWT 用于从仪表板会话发起的云浏览器生命周期操作，数据令牌嵌入在 CDP 会话 URL 中用于 WebSocket 访问。了解哪种凭证用于何处可以防止认证错误并确保你的密钥安全。
+
+## 获取 API 密钥
+
+登录后打开 [AdsCrawl 仪表板](https://app.adscrawl.net/dashboard/)，从密钥部分复制你的 API 密钥。将其存储在环境变量或密钥管理器中，切勿在应用源码中硬编码。
+
+```bash
+export ADSCRAWL_API_KEY="your-api-key"
+```
+
+## 发送 API 密钥
+
+在每个请求的 `x-api-key` 请求头中传递你的 API 密钥。请求头名称为小写，值为完整密钥字符串。
+
+<CodeGroup>
+
+```bash cURL
+curl --fail-with-body -sS -X POST "https://api.adscrawl.net/html" \
+  -H "content-type: application/json" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -d '{"url": "https://example.com", "contentMode": "markdown"}'
+```
+
+```javascript JavaScript (fetch)
+const response = await fetch("https://api.adscrawl.net/html", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-api-key": process.env.ADSCRAWL_API_KEY,
+  },
+  body: JSON.stringify({
+    url: "https://example.com",
+    contentMode: "markdown",
+  }),
+});
+```
+
+```python Python
+import os
+import requests
+
+response = requests.post(
+    "https://api.adscrawl.net/html",
+    headers={
+        "content-type": "application/json",
+        "x-api-key": os.environ["ADSCRAWL_API_KEY"],
+    },
+    json={"url": "https://example.com", "contentMode": "markdown"},
+)
+```
+
+</CodeGroup>
+
+<Warning>
+  切勿在客户端 JavaScript、浏览器扩展、移动应用、公开仓库或请求 URL 中暴露你的 API 密钥。你的密钥有权对你的账户进行扣费。如果密钥已泄露，请立即从仪表板轮换密钥。
+</Warning>
+
+## 会话 JWT（云浏览器生命周期）
+
+云浏览器列表、创建、启动、开始和停止端点也接受 `Authorization: Bearer <SESSION_JWT>` 请求头中的会话 JWT。这是一个登录会话令牌，代表已登录的仪表板用户，而非 API 密钥。
+
+会话认证在一点上比 API 密钥认证更窄：**它在启动请求上需要 `apiKeyId`**。你必须提供属于同一账户的活动、未过期 API 密钥的 UUID。API 密钥认证会自动选择当前密钥。
+
+```bash
+curl --fail-with-body -sS -X POST \
+  "https://api.adscrawl.net/cloud-browsers/<CLOUD_BROWSER_ID>/start" \
+  -H "Authorization: Bearer <SESSION_JWT>" \
+  -H "content-type: application/json" \
+  -d '{"apiKeyId": "<API_KEY_ID>", "countryCode": "GLOBAL"}'
+```
+
+<Info>
+  对于从仪表板发起的请求，会话 cookie 也可以替代 Bearer 令牌使用。对于所有服务器端和自动化工作流，请使用 API 密钥认证。
+</Info>
+
+## 数据令牌（CDP WebSocket 访问）
+
+当你创建 CDP 会话时，`201` 响应包含一个已经嵌入了数据令牌的 `cdpBaseUrl`：
+
+```json
+{
+  "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+  "expiresAt": "2026-04-21T10:30:00.000Z",
+  "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-...?token=<data-token>"
+}
+```
+
+直接将 `cdpBaseUrl` 传递给 Playwright 的 `connectOverCDP`。此 URL 中的数据令牌同时授权 CDP 发现端点（`GET /cdp/sessions/:id/json/version`）和 CDP WebSocket（`WSS /cdp/sessions/:id/devtools/browser/:browserId`）。
+
+<Warning>
+  **不要** 用 API 密钥替换 `cdpBaseUrl` 中的数据令牌。数据令牌是一个单独的、会话范围的凭证。替换为你的 API 密钥将导致 `401` 错误。
+</Warning>
+
+对于实时浏览器控制，使用你的 API 密钥认证的 `POST /cdp/live-token` 获取短期有效的 `controlToken`。此一次性令牌在 30 秒后过期，并授权一次到 `WSS /cdp/live/:sessionId` 的 WebSocket 连接。
+
+## 错误参考
+
+| HTTP 状态 | 含义 | 解决方案 |
+| --- | --- | --- |
+| `401` | 缺失或无效的 `x-api-key` | 验证请求头名称为 `x-api-key`（小写）且值为完整、未截断的密钥。 |
+| `402` | 积分不足 | 在仪表板中检查你的积分余额，升级你的套餐或等待下次续期。 |
+| `403` | 会话不属于当前密钥 | 你引用的 `sessionId` 是由不同的 API 密钥创建的。使用创建该会话的密钥。 |
+
+## 各套餐的 API 密钥限制
+
+你可以创建的 API 密钥数量取决于你的套餐。每个密钥都是独立的，可以分配给不同的服务器或服务。
+
+| 套餐 | 价格 | API 密钥数量 |
+| --- | --- | --- |
+| Free | \$0 | 1 |
+| Hobby | \$9 / 月 | 3 |
+| Starter | \$49 / 月 | 10 |
+| Pro | \$199 / 月 | 30 |
+
+<Note>
+  你可以在 [仪表板](https://app.adscrawl.net/dashboard/) 中查看和管理你的 API 密钥、积分余额和套餐。要创建新账户，请访问 [app.adscrawl.net/register](https://app.adscrawl.net/register/)。
+</Note>

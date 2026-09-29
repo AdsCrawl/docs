@@ -1,0 +1,233 @@
+---
+title: "从 JavaScript 密集型页面提取结构化数据"
+sidebarTitle: "Extract Data"
+description: "使用 POST /spa-extract 通过 DOM 选择器或网络拦截从单页应用提取带类型的字段，或为热门网站应用预构建模板。"
+---
+
+使用 `POST /spa-extract` 从单页应用和其他 JavaScript 密集型网站中提取特定的、带类型的字段。你可以直接使用 CSS 选择器定位元素，拦截实时网络响应以捕获 API 载荷，或为 SimilarWeb 和 Google Trends 等热门网站应用预构建模板，而无需编写或维护爬虫程序。
+
+## 两种提取模式
+
+`mode` 字段控制端点的行为：
+
+| 模式 | 返回值 |
+| --- | --- |
+| `inspect` | 建议的提取方案：页面上找到的可选 DOM 选择器和拦截的网络请求 |
+| `extract` | 根据你的 `fields` 定义或命名 `template` 提取的实际字段值 |
+
+## 使用 inspect 模式发现字段
+
+当你面对不熟悉的页面时，首先运行 `inspect`。响应会告诉你哪些 DOM 元素和网络响应可用，并生成一个 `suggestedPlan`，你可以直接将其粘贴到 `extract` 请求中。
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "mode": "inspect"
+}
+```
+
+响应如下所示：
+
+```json
+{
+  "mode": "inspect",
+  "page": {
+    "url": "https://example.com/dashboard",
+    "title": "Example Dashboard"
+  },
+  "candidates": {
+    "dom": { "metrics": [], "tables": [] },
+    "network": []
+  },
+  "suggestedPlan": {
+    "fields": {},
+    "schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+## 提取自定义字段
+
+在请求体中定义 `fields` 对象，其中每个键是输出字段名称，其值描述从哪里以及如何读取它。
+
+### DOM 字段
+
+DOM 字段从渲染后的元素中读取。设置 `source: "dom"`，使用 `selector` 指向元素，并选择 `parse` 类型来强制转换值。
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "mode": "extract",
+  "waitFor": { "selector": "h1", "timeoutMs": 15000 },
+  "fields": {
+    "title": { "source": "dom", "selector": "h1", "parse": "string" },
+    "price": { "source": "dom", "selector": ".price", "parse": "number" }
+  }
+}
+```
+
+### Network 字段
+
+Network 字段拦截页面自身 API 调用中的 JSON 响应。设置 `source: "network"`，使用 `urlIncludes` 匹配请求 URL，并提供使用 JSONPath 语法的 `path` 以到达响应内的值。
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "mode": "extract",
+  "fields": {
+    "visitorCount": {
+      "source": "network",
+      "urlIncludes": "/api/metrics",
+      "path": "$.data.visitors"
+    }
+  }
+}
+```
+
+### 字段选项参考
+
+<Accordion title="字段定义选项">
+  <ParamField body="source" type='"dom" | "network"' required>
+    字段的数据源。
+  </ParamField>
+
+  <ParamField body="selector" type="string">
+    CSS 选择器（仅 DOM 字段）。
+  </ParamField>
+
+  <ParamField body="value" type='"text" | "html" | "attribute"'>
+    DOM 读取模式。默认为 `"text"`。与 `attribute` 字段一起使用 `"attribute"`。
+  </ParamField>
+
+  <ParamField body="urlIncludes" type="string">
+    匹配网络响应 URL 的子字符串（仅 network 字段）。
+  </ParamField>
+
+  <ParamField body="path" type="string">
+    指向匹配响应的 JSONPath 表达式，例如 `$.data.metrics[0].value`。
+  </ParamField>
+
+  <ParamField body="parse" type='"string" | "number" | "integer" | "boolean" | "json"'>
+    将提取的值强制转换为该类型。
+  </ParamField>
+
+  <ParamField body="multiple" type="boolean">
+    将所有匹配的元素作为数组返回（仅 DOM 字段）。
+  </ParamField>
+
+  <ParamField body="regex" type="string">
+    应用正则表达式。当存在捕获组时，返回第 1 组。
+  </ParamField>
+
+  <ParamField body="required" type="boolean">
+    缺失的必填字段会导致 `422 SPA_REQUIRED_FIELDS_MISSING` 响应。
+  </ParamField>
+</Accordion>
+
+## 使用预构建模板
+
+AdsCrawl 提供三个针对难以稳定抓取的网站的维护模板。传递 `template` 而非 `fields`。
+
+<CardGroup cols={3}>
+  <Card title="similarweb-overview" icon="chart-bar">
+    从 SimilarWeb 获取网站流量、参与度和排名指标。
+  </Card>
+
+  <Card title="google-trends-explore" icon="trending-up">
+    获取最多五个搜索词的随时间变化的兴趣和平均值。
+  </Card>
+
+  <Card title="chrome-web-store-app-info" icon="puzzle-piece">
+    包括评分、用户数和类别的扩展程序元数据。
+  </Card>
+</CardGroup>
+
+随时列出模板并查看其完整输出架构：
+
+```bash
+curl -sS "https://api.adscrawl.net/spa-extract/templates" \
+  -H "x-api-key: $ADSCRAWL_API_KEY"
+```
+
+### SimilarWeb 示例
+
+传递完整的 SimilarWeb URL 和用于代理路由的 `countryCode`。模板自动处理认证、滚动时序和字段提取。
+
+```json
+{
+  "template": "similarweb-overview",
+  "url": "https://www.similarweb.com/website/example.com/#overview",
+  "countryCode": "GLOBAL"
+}
+```
+
+### Google Trends 示例
+
+通过 `keyword` 字段提供逗号分隔的关键词列表（推荐）。API 为你构建规范的 Trends URL。你最多可以比较五个不同的词条。
+
+```json
+{
+  "template": "google-trends-explore",
+  "keyword": "playwright,puppeteer"
+}
+```
+
+<Note>
+  不要向 Google Trends 请求传递 `cookies`。任何非空的 cookies 数组都会返回 `400 INVALID_TRENDS_COOKIES`。
+</Note>
+
+## 在提取前执行操作
+
+使用 `actions` 数组在字段提取之前与页面交互：点击按钮、填写表单、滚动或等待。操作按顺序执行，每个步骤的上限为 30 秒。
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "mode": "extract",
+  "actions": [
+    { "type": "click", "selector": "#load-more" },
+    { "type": "wait", "milliseconds": 1500 },
+    { "type": "scroll", "y": 800 }
+  ],
+  "fields": {
+    "title": { "source": "dom", "selector": "h1", "parse": "string" },
+    "price": { "source": "dom", "selector": ".price", "parse": "number" }
+  }
+}
+```
+
+可用的操作类型：
+
+| 类型 | 说明 |
+| --- | --- |
+| `wait` | 暂停 0–30,000 毫秒 |
+| `waitForSelector` | 等待元素变为可见 |
+| `click` | 点击第一个匹配的元素 |
+| `fill` | 清空并输入到输入框 |
+| `press` | 在元素上按下键盘按键 |
+| `scroll` | 将元素滚动到视图内或按 `x`/`y` 滚动页面 |
+
+## 完整 extract 响应
+
+成功的 `extract` 响应始终包含 `mode`、`page`、`data` 和 `missingFields`：
+
+```json
+{
+  "mode": "extract",
+  "page": {
+    "url": "https://example.com/dashboard",
+    "title": "Example Dashboard"
+  },
+  "data": {
+    "title": "Example Dashboard",
+    "price": 49.99
+  },
+  "missingFields": []
+}
+```
+
+`missingFields` 列出已定义但无法解析的字段名称。标记为 `required: true` 的缺失字段将返回 `422` 错误。

@@ -1,0 +1,171 @@
+---
+title: "快速开始：今天发出你的第一个 AdsCrawl API 请求"
+sidebarTitle: "快速开始"
+description: "创建一个免费的 AdsCrawl 账户，从仪表板获取你的 API 密钥，并在五分钟内发出第一个渲染 HTML 或 Markdown 请求。"
+---
+
+AdsCrawl 的设计目标是从你的第一个请求起就变得简单易用。本指南会带你完成从账户创建到成功发出 API 调用的全过程 — 无需配置文件、无需基础设施搭建，也无需单独设置代理账户。读完后，你将在终端中获得一个渲染后的页面响应，并清楚知道哪个 API 适合自己的使用场景。
+
+<Steps>
+  <Step title="创建免费账户">
+    前往 [app.adscrawl.net/register](https://app.adscrawl.net/register/) 注册。免费套餐为你提供 500 积分，无需绑定信用卡 — 足够你探索 HTML 提取、截图以及短时 CDP 会话。
+  </Step>
+  <Step title="复制你的 API 密钥">
+    登录后，打开 [AdsCrawl 仪表板](https://app.adscrawl.net/dashboard/) 并复制你的 API 密钥。请将其作为环境变量保存在你的服务器上或密钥管理工具中。
+
+    ```bash
+    export ADSCRAWL_API_KEY="your-api-key"
+    ```
+
+    <Warning>
+      切勿将 API 密钥粘贴到客户端JavaScript中、提交到代码仓库，或包含在公开 URL 中。请仅保存在你的服务器端。
+    </Warning>
+  </Step>
+  <Step title="发出你的第一个请求">
+    使用 `POST /html` 获取一个已渲染的页面。此端点是同步的 — AdsCrawl 会启动真实的浏览器，加载目标 URL，然后通过 HTTP 响应将结果流式返回给你。
+
+    通过设置 `contentMode` 来控制返回的内容格式：
+
+    - `"html"` — 完整的已渲染页面 HTML（默认）
+    - `"markdown"` — 使用 Readability 解析器提取的干净、易读的 Markdown
+    - `"json"` — 包含标题、作者署名、摘要和正文的结构化文章对象
+
+    <CodeGroup>
+
+    ```bash cURL
+    export ADSCRAWL_API_KEY="your-api-key"
+    
+    curl --fail-with-body -sS -X POST "https://api.adscrawl.net/html" \
+      -H "content-type: application/json" \
+      -H "x-api-key: $ADSCRAWL_API_KEY" \
+      -d '{
+        "url": "https://example.com/article",
+        "contentMode": "markdown",
+        "waitUntil": "domcontentloaded"
+      }'
+    ```
+
+    ```javascript JavaScript (fetch)
+    const response = await fetch("https://api.adscrawl.net/html", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ADSCRAWL_API_KEY,
+      },
+      body: JSON.stringify({
+        url: "https://example.com/article",
+        contentMode: "markdown",
+        waitUntil: "domcontentloaded",
+      }),
+    });
+    
+    const markdown = await response.text();
+    console.log(markdown);
+    ```
+
+    ```python Python
+    import os
+    import requests
+    
+    response = requests.post(
+        "https://api.adscrawl.net/html",
+        headers={
+            "content-type": "application/json",
+            "x-api-key": os.environ["ADSCRAWL_API_KEY"],
+        },
+        json={
+            "url": "https://example.com/article",
+            "contentMode": "markdown",
+            "waitUntil": "domcontentloaded",
+        },
+    )
+    
+    print(response.text)
+    ```
+
+    </CodeGroup>
+
+    对于大多数 HTML 和 Markdown 提取任务，请使用 `"waitUntil": "domcontentloaded"` — 它速度更快，且无需等待分析脚本或懒加载资源。当你需要的内容依赖于次要资源或延迟加载的 JavaScript 时，请切换到 `"load"` 或 `"networkidle"`。
+  </Step>
+  <Step title="检查响应">
+    请求成功会返回 HTTP `200`。响应体内容取决于 `contentMode` 的设置：
+
+    <Tabs>
+      <Tab title="markdown (text/markdown)">
+        ```markdown
+        # Example Article
+        
+        Readable body content extracted from the page.
+        
+        - Key point one
+        - Key point two
+        ```
+      </Tab>
+      <Tab title="json (application/json)">
+        ```json
+        {
+          "title": "Example Article",
+          "byline": "Jane Smith",
+          "excerpt": "A concise summary of the article.",
+          "siteName": "Example",
+          "lang": "en",
+          "dir": null,
+          "content": "<div><p>Readable body...</p></div>",
+          "textContent": "Readable body...",
+          "length": 2487,
+          "publishedTime": null
+        }
+        ```
+      </Tab>
+      <Tab title="html (text/html)">
+        ```html
+        <!DOCTYPE html>
+        <html lang="en">
+          <head><title>Example Article</title></head>
+          <body>
+            <!-- Full rendered page HTML -->
+          </body>
+        </html>
+        ```
+      </Tab>
+    </Tabs>
+
+    如果你收到 `402`，表示你的账户积分已用完 — 请在仪表板中检查余额。`401` 表示 API 密钥缺失或错误。
+  </Step>
+</Steps>
+
+## 接下来探索什么
+
+AdsCrawl 提供五个 API。根据你的工作流程选择最适合的：
+
+<CardGroup cols={2}>
+  <Card title="浏览器任务" icon="browser" href="/zh/concepts/browser-tasks">
+    从 SPA 中提取 HTML、Markdown、JSON、截图和结构化字段。
+  </Card>
+
+  <Card title="远程 CDP" icon="plug" href="/zh/concepts/remote-cdp">
+    将 Playwright 或 Puppeteer 连接到远程浏览器进行脚本化自动化操作。
+  </Card>
+
+  <Card title="云浏览器" icon="cloud" href="/zh/concepts/cloud-browsers">
+    持久化的浏览器配置文件，支持实时查看器、保存 Cookie 和可复用状态。
+  </Card>
+
+  <Card title="API 参考" icon="code" href="/zh/api-reference/html">
+    每个端点的完整请求和响应模式。
+  </Card>
+</CardGroup>
+
+<Tip>
+  如果你希望让编程代理帮你完成设置，可以将以下提示词粘贴到代理中：
+
+  ```text
+  Set up AdsCrawl in this codebase. Use https://api.adscrawl.net/auth.md to help me
+  create an account and authorize an API key, then follow
+  https://api.adscrawl.net/docs/agent-quickstart.md to complete the integration.
+  ```
+
+  代理会引导你完成注册和集成流程。你只需在浏览器中批准 API 密钥请求即可。
+</Tip>
+
+成功发出第一个请求后，请阅读 [身份验证](/zh/authentication) 页面以全面了解凭证模型 — 特别是如果你计划使用云浏览器或 CDP 会话。

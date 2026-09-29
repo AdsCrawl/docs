@@ -1,0 +1,632 @@
+---
+title: "API Schema Reference — Shared Types for All Endpoints"
+sidebarTitle: "Schemas"
+description: "Reusable schema definitions for browserSettings, proxy, fingerprint, cookies, waitFor, field, and actions across all AdsCrawl endpoints."
+---
+
+These schemas appear across multiple AdsCrawl endpoints. Instead of repeating field definitions in every endpoint reference, this page documents each schema once. Understanding `browserSettings`, `fingerprint`, `proxy`, `cookies`, `waitFor`, `field`, and `actions` before you start building lets you configure browser tasks, CDP sessions, and cloud browsers consistently and correctly.
+
+---
+
+## `browserSettings`
+
+Browser configuration shared across CDP sessions and cloud browsers. Omitted regions use a random trusted proxy; explicitly pass `GLOBAL`, a region code, or a custom `proxy` object when you need deterministic routing.
+
+<ParamField body="viewport" type="object">
+  Browser window size.
+
+  <Expandable title="viewport fields">
+    <ParamField body="width" type="number" required>
+      Viewport width in pixels.
+    </ParamField>
+
+    <ParamField body="height" type="number" required>
+      Viewport height in pixels.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="locale" type="string">
+  Browser locale, such as `"en-US"`.
+</ParamField>
+
+<ParamField body="timezoneId" type="string">
+  IANA timezone identifier, such as `"Asia/Shanghai"`.
+</ParamField>
+
+<ParamField body="geolocation" type="object">
+  Optional geolocation coordinates to inject into the browser.
+
+  <Expandable title="geolocation fields">
+    <ParamField body="latitude" type="number" required>
+      Latitude in decimal degrees.
+    </ParamField>
+
+    <ParamField body="longitude" type="number" required>
+      Longitude in decimal degrees.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="proxy" type="object">
+  Custom proxy configuration. Cannot be combined with `countryCode`. See the [`proxy` schema](#proxy) below.
+</ParamField>
+
+<ParamField body="countryCode" type="string">
+  Managed proxy region. Use `"GLOBAL"` to select a popular region automatically, or a two-letter country code (e.g. `"FR"`) to prefer a trusted proxy in that region with dynamic fallback. Cannot be combined with `proxy`.
+</ParamField>
+
+<ParamField body="userAgent" type="string">
+  Overrides the default User-Agent string.
+</ParamField>
+
+<ParamField body="userAgentMode" type='"custom" | "random"'>
+  Set to `"random"` to let the server select a User-Agent from its library. Requests without a User-Agent default to `"random"`.
+</ParamField>
+
+<ParamField body="userAgentOs" type='"windows" | "macos"'>
+  Operating system used by random User-Agent mode. Defaults to `"windows"`.
+</ParamField>
+
+<ParamField body="fingerprint" type="object">
+  Browser fingerprint settings. When omitted in CDP contexts, `canvas` and `webGlImage` default to `"real"` while other signals use a coherent randomized profile. See the [`fingerprint` schema](#fingerprint) below.
+</ParamField>
+
+<ParamField body="cookies" type="cookies[]">
+  Cookies injected into the browser context before the session starts. See the [`cookies[]` schema](#cookies) below.
+</ParamField>
+
+### Example
+
+```json
+{
+  "viewport": { "width": 1440, "height": 900 },
+  "locale": "en-US",
+  "timezoneId": "America/New_York",
+  "countryCode": "US",
+  "userAgentMode": "random",
+  "userAgentOs": "macos",
+  "fingerprint": {
+    "canvas": "random",
+    "webRtc": "forward"
+  }
+}
+```
+
+---
+
+## `fingerprint`
+
+Controls browser fingerprint signals to reduce detectability. Every field is optional. Browser-task omissions default to `"random"`. CDP `browserSettings` omissions set `canvas` and `webGlImage` to `"real"` and generate other signals from a coherent randomized profile.
+
+<Warning>
+  When `webGl` is `"real"`, you cannot set `webGpu` or `hardware` to `"random"`. These three signals must be consistent with each other.
+</Warning>
+
+| Field | Accepted Values | Notes |
+| --- | --- | --- |
+| `webRtc` | `"forward"` \| `"real"` \| `"disabled"` | `"forward"` uses the proxy exit address. The legacy value `"random"` is accepted as an alias for `"forward"`. |
+| `webGl` | `"random"` \| `"real"` | Spoofs or preserves WebGL vendor and renderer metadata. |
+| `webGpu` | `"random"` \| `"real"` \| `"disabled"` | In `"random"` mode, follows the WebGL GPU configuration. |
+| `webGlImage` | `"random"` \| `"real"` | Controls WebGL image rendering noise. |
+| `canvas` | `"random"` \| `"real"` | Adds or suppresses canvas fingerprint noise. |
+| `audioContext` | `"random"` \| `"real"` | Adds or suppresses audio context fingerprint noise. |
+| `clientRects` | `"random"` \| `"real"` | Adds or suppresses layout measurement noise. |
+| `speechVoices` | `"random"` \| `"real"` | Returns an OS-matched or real speech voice list. |
+| `fonts` | `"random"` \| `"real"` | Returns an OS-matched or real installed font list. |
+| `hardware` | `"random"` \| `"real"` | Generates CPU thread count and device memory as a matched pair. |
+| `doNotTrack` | `"random"` \| `"enabled"` \| `"disabled"` | Controls the DNT request header preference. |
+
+### Example
+
+```json
+{
+  "webRtc": "forward",
+  "webGl": "random",
+  "webGpu": "random",
+  "canvas": "random",
+  "audioContext": "random",
+  "fonts": "random",
+  "hardware": "random",
+  "doNotTrack": "disabled"
+}
+```
+
+---
+
+## `proxy`
+
+Custom proxy configuration for routing browser traffic. Provide either the `server` URL form **or** the split form (`protocol` + `host` + `port`) — never both.
+
+<Warning>
+  Supply `username` and `password` together. Omit both for an unauthenticated proxy. Never embed credentials in the `server` URL.
+</Warning>
+
+<ParamField body="server" type="string">
+  Full proxy URL, e.g. `"http://host:port"` or `"socks5://host:port"`. Must include an explicit port. Cannot be combined with `host`. Do not embed credentials, a path, a query string, or a fragment.
+</ParamField>
+
+<ParamField body="protocol" type='"http" | "socks5"'>
+  Proxy protocol for the split form.
+</ParamField>
+
+<ParamField body="host" type="string">
+  Proxy hostname for the split form. Cannot be combined with `server`.
+</ParamField>
+
+<ParamField body="port" type="number | string">
+  Proxy port for the split form. Accepts an integer or numeric string from 1 to 65535.
+</ParamField>
+
+<ParamField body="username" type="string">
+  Proxy authentication username. Must be supplied together with `password`.
+</ParamField>
+
+<ParamField body="password" type="string">
+  Proxy authentication password. Must be supplied together with `username`.
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+
+```json URL form
+{
+  "server": "http://proxy.example.com:8080",
+  "username": "<proxy-user>",
+  "password": "<proxy-password>"
+}
+```
+
+```json Split form (SOCKS5)
+{
+  "protocol": "socks5",
+  "host": "proxy.example.com",
+  "port": 1080,
+  "username": "<proxy-user>",
+  "password": "<proxy-password>"
+}
+```
+
+```json Unauthenticated
+{
+  "server": "http://proxy.example.com:8080"
+}
+```
+
+</CodeGroup>
+
+---
+
+## `cookies[]`
+
+An array of cookies injected into the browser context before navigation begins. Each entry is an object with the following fields.
+
+<ParamField body="name" type="string" required>
+  Cookie name.
+</ParamField>
+
+<ParamField body="value" type="string" required>
+  Cookie value.
+</ParamField>
+
+<ParamField body="domain" type="string" required>
+  Target domain, e.g. `".example.com"`. Include the leading dot to match subdomains.
+</ParamField>
+
+<ParamField body="path" type="string">
+  Cookie path. Defaults to `"/"`.
+</ParamField>
+
+<ParamField body="secure" type="boolean">
+  When `true`, the cookie is sent only over HTTPS.
+</ParamField>
+
+<ParamField body="httpOnly" type="boolean">
+  When `true`, the cookie is inaccessible to client-side JavaScript.
+</ParamField>
+
+<ParamField body="hostOnly" type="boolean">
+  When `true`, the cookie is bound to the exact host and not subdomains.
+</ParamField>
+
+<ParamField body="sameSite" type="string">
+  SameSite attribute. Accepted values: `"Strict"`, `"Lax"`, `"None"`.
+</ParamField>
+
+<ParamField body="session" type="boolean">
+  When `true`, the cookie expires with the session and has no persistent expiry.
+</ParamField>
+
+<ParamField body="expirationDate / expires / expiry" type="number">
+  Persistent expiry as a Unix timestamp in seconds. All three field names are accepted interchangeably.
+</ParamField>
+
+### Example
+
+```json
+[
+  {
+    "name": "sid",
+    "value": "<session-token>",
+    "domain": ".example.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "Lax",
+    "expirationDate": 1893456000
+  }
+]
+```
+
+---
+
+## `waitFor`
+
+Instructs the browser to pause after navigation or after executing `actions` until a specific element or text becomes visible on the page. You can combine `selector` and `text` in the same object.
+
+<ParamField body="selector" type="string">
+  CSS selector. The browser waits for the first matching element to become visible.
+</ParamField>
+
+<ParamField body="text" type="string">
+  Text content. The browser waits for the first element containing this text to become visible.
+</ParamField>
+
+<ParamField body="timeoutMs" type="number">
+  Maximum wait time in milliseconds. Defaults to `15000`. Never exceeds the remaining task timeout, regardless of the value you supply.
+</ParamField>
+
+### Example
+
+```json
+{
+  "selector": "#search-results",
+  "timeoutMs": 10000
+}
+```
+
+---
+
+## `field` (SPA Extract Field Definition)
+
+Defines a single field to extract in a `POST /spa-extract` request. DOM fields read element content; network fields capture data from intercepted JSON responses.
+
+<ParamField body="source" type='"dom" | "network"' required>
+  Data source for this field. Use `"dom"` to read from the page's DOM, or `"network"` to capture a matching JSON response from a network request.
+</ParamField>
+
+<ParamField body="selector" type="string">
+  CSS selector identifying the target element. Required for `source: "dom"` fields.
+</ParamField>
+
+<ParamField body="value" type='"text" | "html" | "attribute"'>
+  DOM read mode. Defaults to `"text"`. Use `"html"` to get the element's inner HTML, or `"attribute"` to read a specific attribute.
+</ParamField>
+
+<ParamField body="attribute" type="string">
+  The attribute name to read when `value` is `"attribute"`. For example, `"href"` or `"data-id"`.
+</ParamField>
+
+<ParamField body="urlIncludes" type="string">
+  A substring used to match the response URL for `source: "network"` fields. The most recent matching response is used.
+</ParamField>
+
+<ParamField body="path" type="string">
+  JSONPath expression to extract a value from the matched network response body. For example, `"$.data.metrics[0].value"`.
+</ParamField>
+
+<ParamField body="multiple" type="boolean">
+  When `true`, the field returns an array of all matching DOM elements instead of just the first.
+</ParamField>
+
+<ParamField body="parse" type='"string" | "number" | "integer" | "boolean" | "json"'>
+  Coerces the extracted raw value to the specified type before returning it.
+</ParamField>
+
+<ParamField body="regex" type="string">
+  A regular expression applied to the extracted value. When the pattern contains a capture group, group 1 is returned as the field value.
+</ParamField>
+
+<ParamField body="required" type="boolean">
+  When `true`, a missing or unmatched field causes the endpoint to return `422 SPA_REQUIRED_FIELDS_MISSING` instead of returning `null`.
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+
+```json DOM field
+{
+  "source": "dom",
+  "selector": "h1.product-title",
+  "value": "text",
+  "required": true
+}
+```
+
+```json DOM attribute field
+{
+  "source": "dom",
+  "selector": "meta[name='description']",
+  "value": "attribute",
+  "attribute": "content"
+}
+```
+
+```json Network field
+{
+  "source": "network",
+  "urlIncludes": "/api/v2/metrics",
+  "path": "$.data.metrics[0].value",
+  "parse": "number",
+  "required": true
+}
+```
+
+```json Multiple elements
+{
+  "source": "dom",
+  "selector": "ul.results li",
+  "value": "text",
+  "multiple": true
+}
+```
+
+</CodeGroup>
+
+---
+
+## `actions[]`
+
+An ordered array of page interactions executed before extraction begins in `POST /spa-extract`. Each element is an object with a `type` field that determines which action runs. Every interactive step is capped at 30 seconds.
+
+<Accordion title="wait — pause execution">
+  Pauses execution for a fixed number of milliseconds.
+
+  ```json
+  { "type": "wait", "milliseconds": 2000 }
+  ```
+
+  <ParamField body="type" type="string" required>
+    Must be `"wait"`.
+  </ParamField>
+
+  <ParamField body="milliseconds" type="number" required>
+    Duration to pause. Accepted range: `0` to `30000`.
+  </ParamField>
+</Accordion>
+
+<Accordion title="waitForSelector — wait for an element">
+  Pauses until the first element matching the CSS selector becomes visible.
+
+  ```json
+  { "type": "waitForSelector", "selector": "#content", "timeoutMs": 8000 }
+  ```
+
+  <ParamField body="type" type="string" required>
+    Must be `"waitForSelector"`.
+  </ParamField>
+
+  <ParamField body="selector" type="string" required>
+    CSS selector to wait for.
+  </ParamField>
+
+  <ParamField body="timeoutMs" type="number">
+    Maximum wait in milliseconds. Defaults to the step's 30-second cap when omitted.
+  </ParamField>
+</Accordion>
+
+<Accordion title="click — click an element">
+  Clicks the first element matching the CSS selector.
+
+  ```json
+  { "type": "click", "selector": "button.load-more" }
+  ```
+
+  <ParamField body="type" type="string" required>
+    Must be `"click"`.
+  </ParamField>
+
+  <ParamField body="selector" type="string" required>
+    CSS selector of the element to click.
+  </ParamField>
+</Accordion>
+
+<Accordion title="fill — fill an input">
+  Clears the target input element and types the given value into it.
+
+  ```json
+  { "type": "fill", "selector": "input[name='q']", "value": "browser automation" }
+  ```
+
+  <ParamField body="type" type="string" required>
+    Must be `"fill"`.
+  </ParamField>
+
+  <ParamField body="selector" type="string" required>
+    CSS selector of the input element to fill.
+  </ParamField>
+
+  <ParamField body="value" type="string" required>
+    Text to enter into the input.
+  </ParamField>
+</Accordion>
+
+<Accordion title="press — press a key">
+  Sends a keyboard key press to the first element matching the CSS selector.
+
+  ```json
+  { "type": "press", "selector": "input[name='q']", "key": "Enter" }
+  ```
+
+  <ParamField body="type" type="string" required>
+    Must be `"press"`.
+  </ParamField>
+
+  <ParamField body="selector" type="string" required>
+    CSS selector of the target element.
+  </ParamField>
+
+  <ParamField body="key" type="string" required>
+    Key to press, such as `"Enter"`, `"Tab"`, or `"ArrowDown"`.
+  </ParamField>
+</Accordion>
+
+<Accordion title="scroll — scroll the page or an element">
+  Scrolls an element into view, or scrolls the page by a given pixel offset.
+
+  ```json
+  { "type": "scroll", "y": 1200 }
+  ```
+
+  ```json
+  { "type": "scroll", "selector": ".lazy-section" }
+  ```
+
+  <ParamField body="type" type="string" required>
+    Must be `"scroll"`.
+  </ParamField>
+
+  <ParamField body="selector" type="string">
+    CSS selector. When provided, the matching element is scrolled into view.
+  </ParamField>
+
+  <ParamField body="x" type="number">
+    Horizontal scroll offset in pixels. Defaults to `0`.
+  </ParamField>
+
+  <ParamField body="y" type="number">
+    Vertical scroll offset in pixels. Defaults to `800` when no `selector` is given.
+  </ParamField>
+</Accordion>
+
+### Full actions example
+
+```json
+[
+  { "type": "waitForSelector", "selector": "#cookie-banner button", "timeoutMs": 5000 },
+  { "type": "click", "selector": "#cookie-banner button" },
+  { "type": "fill", "selector": "input[name='q']", "value": "adscrawl api" },
+  { "type": "press", "selector": "input[name='q']", "key": "Enter" },
+  { "type": "waitForSelector", "selector": "#results", "timeoutMs": 10000 },
+  { "type": "scroll", "y": 1600 }
+]
+```
+
+---
+
+## `cloudBrowser.runtime`
+
+The runtime status object returned by cloud browser endpoints. It describes the current lifecycle state of a running or stopped browser session.
+
+<Warning>
+  Never construct `connectUrl` or `cdpBaseUrl` yourself, and never append API keys, cookies, or proxy credentials to these URLs. Always use the exact URLs returned by the API. If a URL is absent from the response, query the current status before proceeding.
+</Warning>
+
+<ResponseField name="runtimeKind" type='"neko" | "worker_cdp"'>
+  The type of runtime backing this browser session. `"neko"` provides an interactive browser and omits `cdpBaseUrl`. `"worker_cdp"` exposes a CDP endpoint and may include `cdpBaseUrl`.
+</ResponseField>
+
+<ResponseField name="status" type='"starting" | "running" | "stopping" | "stopped"' required>
+  The current lifecycle status of the session.
+
+  <Expandable title="Status values">
+    | Value | Meaning |
+    | --- | --- |
+    | `starting` | Session is being provisioned. Running quota is already reserved. |
+    | `running` | Session is active. `connectUrl` may be present. |
+    | `stopping` | A stop was requested but is not yet confirmed. Running quota is still reserved. |
+    | `stopped` | Session has ended. Running quota is released. |
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="sessionId" type="string">
+  The active session identifier. Present for `starting`, `running`, and `stopping` states.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string (RFC3339)">
+  The time at which the active session expires.
+</ResponseField>
+
+<ResponseField name="connectUrl" type="string">
+  Direct URL to open the interactive browser. Only present when `status` is `"running"` and `runtimeKind` is `"neko"`. Requires the profile owner's login session — authorization uses the session cookie, not the viewer's `usr`/`pwd` URL parameters.
+</ResponseField>
+
+<ResponseField name="cdpBaseUrl" type="string">
+  The CDP base URL with a temporary token. Only returned by `worker_cdp` runtimes.
+</ResponseField>
+
+<Note>
+  Both `"starting"` and `"stopping"` states count against the user's concurrent running quota. A `"stopping"` session has not yet released its slot — poll `GET /cloud-browsers/{id}` until you see `"stopped"` before assuming capacity is available.
+</Note>
+
+### Example responses
+
+<CodeGroup>
+
+```json Running (neko)
+{
+  "runtimeKind": "neko",
+  "status": "running",
+  "sessionId": "<session-id>",
+  "expiresAt": "2026-09-07T09:00:00.000Z",
+  "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
+}
+```
+
+```json Stopped
+{
+  "runtimeKind": "neko",
+  "status": "stopped"
+}
+```
+
+```json Stopping
+{
+  "runtimeKind": "neko",
+  "status": "stopping",
+  "sessionId": "<session-id>",
+  "expiresAt": "2026-09-07T09:00:00.000Z"
+}
+```
+
+</CodeGroup>
+
+---
+
+## Google Trends Result Metadata
+
+Additional top-level fields returned alongside the standard SPA result by successful `google-trends-explore` responses. These fields describe whether the result was collected live or served from the server cache.
+
+<ResponseField name="source" type='"sunbrowser" | "cache"' required>
+  Indicates whether the result was collected from a live browser session (`"sunbrowser"`) or served from the server-side cache (`"cache"`).
+</ResponseField>
+
+<ResponseField name="cached" type="boolean" required>
+  `true` when this response was served from the cache.
+</ResponseField>
+
+<ResponseField name="stale" type="boolean" required>
+  `true` when the cached result is stale. The response was served from cache but the data may be outdated.
+</ResponseField>
+
+<ResponseField name="collectedAt" type="string (RFC3339Nano)" required>
+  The timestamp at which the result was actually collected, in RFC3339Nano format.
+</ResponseField>
+
+<ResponseField name="attempts" type="integer" required>
+  The number of collection attempts made before the result was returned. Cache HIT responses always report `0`. Stale responses report the number of attempts already made when the result was reported.
+</ResponseField>
+
+### Example
+
+```json
+{
+  "source": "sunbrowser",
+  "cached": false,
+  "stale": false,
+  "collectedAt": "2026-09-07T08:42:11.348291200Z",
+  "attempts": 1
+}
+```

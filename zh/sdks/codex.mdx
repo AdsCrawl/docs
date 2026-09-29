@@ -1,0 +1,85 @@
+---
+title: "AdsCrawl Codex 插件"
+description: "使用 AdsCrawl Codex 插件在 OpenAI Codex 中渲染页面并捕获整页截图。需要 Python 3.9+ 和 API 密钥。"
+sidebarTitle: "Codex Plugin"
+---
+
+AdsCrawl Codex 插件为 [OpenAI Codex](https://openai.com/codex/) 添加了浏览器渲染页面阅读和截图功能。它包含一个 `adscrawl-browser` skill 和一个仅使用 Python 3.9+ 标准库的命令行工具。它通过你的 `ADSCRAWL_API_KEY` 调用 AdsCrawl API，不捆绑任何凭证。
+
+## 功能
+
+- 将 URL 渲染为 Markdown、HTML 或结构化 article JSON。
+- 捕获整页或视口范围内的 PNG 截图。
+- 选择托管的国家/地区路由和导航等待策略。
+- 通过项目中的浏览器自动化库使用 AdsCrawl CDP 会话进行交互式浏览器操作。
+
+## 前置要求
+
+- Python 3.9 或更高版本。
+- 拥有 API 密钥的 [AdsCrawl 账户](https://app.adscrawl.net/register/)。
+
+## 安装
+
+从公共 GitHub 仓库安装插件：
+
+```bash
+codex plugin marketplace add AdsCrawl/adscrawl-codex
+codex plugin add adscrawl@adscrawl
+```
+
+安装完成后，启动一个新的 Codex 任务以加载捆绑的 skill。在开发过程中添加本地 checkout：
+
+```bash
+codex plugin marketplace add /path/to/adscrawl-codex
+codex plugin add adscrawl@adscrawl
+```
+
+<Card title="adscrawl-codex on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-codex">
+  查看源代码和发布版本。
+</Card>
+
+## 认证
+
+安装插件后，你可以让 Codex 连接你的 AdsCrawl 账户，或直接运行认证命令：
+
+```bash
+python3 plugins/adscrawl/scripts/adscrawl.py auth
+```
+
+该命令会询问你的账户邮箱和项目名称，然后打印一个链接供你授权批准。它不会要求输入密码，也不会打印生成的 API 密钥。
+
+或者，你也可以直接在环境中设置 `ADSCRAWL_API_KEY`。如果该环境变量已存在，插件会直接复用。
+
+认证流程会将你的密钥以 `0600` 权限私密保存在 `~/.config/adscrawl/codex.env` 中。
+
+## 直接命令
+
+skill 通过调用 `plugins/adscrawl/scripts/adscrawl.py` 执行操作。你也可以直接运行它：
+
+### 渲染页面
+
+```bash
+python3 plugins/adscrawl/scripts/adscrawl.py render \
+  --url 'https://www.adscrawl.net/' --format markdown --output page.md
+```
+
+<Note>
+  `--format` 支持 `markdown`、`html` 或 `json`（结构化 article）。
+</Note>
+
+### 捕获截图
+
+```bash
+python3 plugins/adscrawl/scripts/adscrawl.py screenshot \
+  --url 'https://www.adscrawl.net/' --output page.png
+```
+
+运行 `python3 plugins/adscrawl/scripts/adscrawl.py <command> --help` 查看可用选项。API 失败不会自动重试。
+
+## CDP 会话
+
+对于交互式浏览器操作（点击、填写表单、多步骤流程），请通过项目中的浏览器自动化库使用 AdsCrawl CDP 会话。详见 [远程 CDP 浏览器](/zh/concepts/remote-cdp) 和 [Playwright 自动化](/zh/guides/playwright-automation)。
+
+<Note>
+  插件请求会消耗 AdsCrawl 积分。详见 [积分与限制](/zh/credits-and-limits)。
+</Note>

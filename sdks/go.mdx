@@ -1,0 +1,321 @@
+---
+title: "Go SDK for AdsCrawl"
+description: "Install and use the AdsCrawl Go SDK to fetch rendered content, screenshots, structured data, and manage remote CDP sessions. Go 1.21+, context-aware, zero runtime dependencies."
+sidebarTitle: "Go"
+---
+
+The AdsCrawl Go SDK works with Go 1.21 and later. It uses only the Go standard library for HTTP, supports `context.Context` cancellation and deadlines, and provides typed request and response models.
+
+<Note>
+  Keep your API key in server-side code. Never expose it in client-side applications.
+</Note>
+
+## Install
+
+```bash
+go get github.com/AdsCrawl/adscrawl-go@v0.1.0
+```
+
+<Card title="adscrawl-go on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-go">
+  View source, runnable examples, and releases.
+</Card>
+
+## Authenticate and make your first request
+
+[Create an API key](https://app.adscrawl.net/register/?utm_source=go&utm_medium=sdk&utm_campaign=adscrawl-go) in the dashboard and set `ADSCRAWL_API_KEY` in your server environment. You can also pass the key to `adscrawl.NewClient(adscrawl.Config{APIKey: "..."})`.
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+    markdown, err := client.Markdown(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{
+            URL:       "https://www.adscrawl.net",
+            WaitUntil: "domcontentloaded",
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(markdown)
+}
+```
+
+## Rendered content and screenshots
+
+`client.HTML(ctx, options)` returns HTML; `Markdown` returns Markdown; `Article` returns a structured `Article`; `Screenshot` returns PNG bytes. Page options include `Viewport`, `Locale`, `Cookies`, `Proxy`, managed `CountryCode`, `Fingerprint`, server-side `TimeoutMS`, and navigation `WaitUntil`.
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    html, err := client.HTML(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{URL: "https://www.adscrawl.net"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(html)
+
+    article, err := client.Article(context.Background(), adscrawl.ContentOptions{
+        PageOptions: adscrawl.PageOptions{URL: "https://www.adscrawl.net"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(article.Title, article.TextContent)
+
+    png, err := client.Screenshot(context.Background(), adscrawl.ScreenshotOptions{
+        PageOptions: adscrawl.PageOptions{
+            BrowserSettings: adscrawl.BrowserSettings{
+                Viewport: &adscrawl.Viewport{Width: 1440, Height: 900},
+            },
+            URL:       "https://www.adscrawl.net",
+            WaitUntil: "load",
+        },
+        FullPage: true,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    if err := os.WriteFile("page.png", png, 0600); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+A custom `Proxy` and `CountryCode` cannot be combined.
+
+## Proxy and fingerprint
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "os"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    routing := adscrawl.BrowserSettings{CountryCode: "GLOBAL"}
+    if server := os.Getenv("ADSCRAWL_PROXY_SERVER"); server != "" {
+        username, password := os.Getenv("ADSCRAWL_PROXY_USERNAME"), os.Getenv("ADSCRAWL_PROXY_PASSWORD")
+        if (username == "") != (password == "") {
+            log.Fatal("set both proxy username and password")
+        }
+        routing = adscrawl.BrowserSettings{
+            Proxy: &adscrawl.Proxy{Server: server, Username: username, Password: password},
+        }
+    } else if os.Getenv("ADSCRAWL_PROXY_USERNAME") != "" || os.Getenv("ADSCRAWL_PROXY_PASSWORD") != "" {
+        log.Fatal("set ADSCRAWL_PROXY_SERVER with proxy credentials")
+    }
+
+    routing.Viewport = &adscrawl.Viewport{Width: 1440, Height: 900}
+    routing.UserAgentMode = "random"
+    routing.UserAgentOS = "windows"
+    routing.Fingerprint = &adscrawl.Fingerprint{
+        WebRTC: "forward", WebGL: "random", WebGPU: "random", WebGLImage: "random",
+        Canvas: "random", AudioContext: "random", ClientRects: "random",
+        SpeechVoices: "random", Fonts: "random", Hardware: "random", DoNotTrack: "random",
+    }
+
+    png, err := client.Screenshot(context.Background(), adscrawl.ScreenshotOptions{
+        PageOptions: adscrawl.PageOptions{
+            BrowserSettings: routing,
+            URL:             "https://www.browserscan.net/",
+            WaitUntil:       "networkidle",
+            TimeoutMS:       60000,
+        },
+        FullPage: true,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    if err := os.WriteFile("browserscan.png", png, 0600); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+AdsCrawl uses real browsers with configurable routing and browser fingerprints. Randomized settings are generated as a coherent profile across the operating system, GPU, hardware, fonts, and related signals. This browser workflow has been verified to access and render BrowserScan, Pixelscan, and IPhey and return screenshots.
+
+## Structured extraction
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    result, err := client.SPA.Extract(context.Background(), adscrawl.SPAOptions{
+        URL: "https://www.adscrawl.net",
+        Fields: map[string]adscrawl.Field{
+            "title": {Source: "dom", Selector: "h1", Value: "text", Required: true},
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result.Data["title"], result.MissingFields)
+}
+```
+
+`client.SPA.Templates(ctx)` lists built-in templates. `client.SPA.Inspect(ctx, options)` suggests fields and schema.
+
+## Remote CDP browsers
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    ctx := context.Background()
+    session, err := client.CDP.Create(ctx, adscrawl.CreateSessionOptions{
+        IdleTimeoutMS: 600000,
+        MaxSessionMS:  3600000,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer func() {
+        if _, err := client.CDP.Close(ctx, session.SessionID); err != nil {
+            log.Printf("close session: %v", err)
+        }
+    }()
+
+    version, err := client.CDP.GetVersion(ctx, session)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(version.Browser)
+    // Pass session.CDPBaseURL to a CDP-compatible browser automation library.
+    // It contains a secret and must not be logged.
+}
+```
+
+`GetVersion` validates the token URL and does not forward the API key.
+
+## Persistent cloud browsers
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    adscrawl "github.com/AdsCrawl/adscrawl-go"
+)
+
+func main() {
+    server := os.Getenv("ADSCRAWL_PROXY_SERVER")
+    if server == "" {
+        log.Fatal("set ADSCRAWL_PROXY_SERVER before launching a cloud browser")
+    }
+
+    client, err := adscrawl.NewClient(adscrawl.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    ctx := context.Background()
+    launched, err := client.CloudBrowsers.Launch(ctx, adscrawl.LaunchCloudBrowserOptions{
+        StartCloudBrowserOptions: adscrawl.StartCloudBrowserOptions{
+            Proxy: &adscrawl.Proxy{
+                Server:   server,
+                Username: os.Getenv("ADSCRAWL_PROXY_USERNAME"),
+                Password: os.Getenv("ADSCRAWL_PROXY_PASSWORD"),
+            },
+        },
+        Tabs: []any{"https://www.adscrawl.net"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer func() {
+        if _, err := client.CloudBrowsers.Stop(ctx, launched.ID); err != nil {
+            log.Printf("stop browser: %v", err)
+        }
+    }()
+
+    profile, err := client.CloudBrowsers.Get(ctx, launched.ID)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(profile.ID, profile.Runtime.Status)
+}
+```
+
+Cloud browser API-key starts and launches require an explicit top-level proxy. A `stopping` response means shutdown is pending; poll `Get` until `stopped`. A failed launch may return a cleanup profile ID in `*adscrawl.APIError`.
+
+## Configuration and errors
+
+Pass `Config{Timeout: 75 * time.Second}` to change the HTTP deadline. Set `PageOptions.TimeoutMS` to control the remote browser task separately.
+
+```go
+var apiErr *adscrawl.APIError
+if errors.As(err, &apiErr) {
+    // apiErr.Status, apiErr.Code, apiErr.TraceID, apiErr.ID
+}
+```
+
+`ADSCRAWL_API_KEY` supplies the key by default. The base URL defaults to `ADSCRAWL_BASE_URL`, then `ADSCRAWL_API_URL`, then `https://api.adscrawl.net`. Errors include `APIError`, `TimeoutError`, `ConnectionError`, and `ResponseError`. The HTTP deadline includes response body reading. Cancelling a request does not prove remote browser work stopped.

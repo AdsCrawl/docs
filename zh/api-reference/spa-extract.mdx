@@ -1,0 +1,758 @@
+---
+title: "POST /spa-extract — 从动态 SPA 中提取数据"
+sidebarTitle: "POST /spa-extract"
+description: "通过自定义 CSS/网络字段、内置模板或 inspect 模式发现提取候选方案，从 JavaScript 密集型 SPA 中提取结构化数据。"
+---
+
+使用 SPA 提取端点从需要 JavaScript 渲染内容的单页应用中拉取结构化数据。你可以定义自己的 CSS 选择器或网络拦截字段，选择 SimilarWeb 或 Google Trends 等内置模板，或者运行 `inspect` 模式让 API 为你建议提取方案。
+
+---
+
+## GET /spa-extract/templates
+
+检索可用的内置提取模板列表。每个模板都包含其所需的输入类型、示例 URL、预期输出字段和元数据。
+
+### Endpoint
+
+```text
+GET https://api.adscrawl.net/spa-extract/templates
+```
+
+### Authentication
+
+| Header | Type | Description |
+| --- | --- | --- |
+| `x-api-key` | `string` **Required** | 在控制台中创建的完整 API 密钥。 |
+
+### Responses
+
+| Code | Content-Type | Description |
+| --- | --- | --- |
+| `200` | `application/json` | 活跃模板及其输入、默认值和输出字段。 |
+| `401` | `application/json` | `x-api-key` 缺失或无效。 |
+| `500` | `application/json` | 加载模板目录失败。 |
+
+### Code example
+
+```bash cURL
+curl -sS "https://api.adscrawl.net/spa-extract/templates" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+### Response example
+
+```json
+{
+  "templates": [
+    {
+      "id": "similarweb-overview",
+      "name": "SimilarWeb Website Overview",
+      "description": "Get public website traffic, engagement, and ranking metrics from SimilarWeb.",
+      "urlPattern": "^https://www\\.similarweb\\.com/website/[^/?#]+/?(?:[?#].*)?$",
+      "exampleUrl": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
+      "version": 5,
+      "updatedAt": "2026-07-18T14:07:33.000Z",
+      "outputFields": [
+        "avgVisitDuration",
+        "avgVisitDurationSeconds",
+        "bounceRate",
+        "categoryRank",
+        "countryRank",
+        "globalRank",
+        "pagesPerVisit",
+        "period",
+        "targetDomain",
+        "totalVisits",
+        "totalVisitsDisplay"
+      ],
+      "waitUntil": "domcontentloaded",
+      "input": {
+        "type": "domain",
+        "example": "dolphin-anty.com",
+        "urlTemplate": "https://www.similarweb.com/website/{value}/#overview"
+      },
+      "catalog": {
+        "category": "analytics",
+        "featured": true,
+        "keywords": ["traffic", "rank", "website analytics"]
+      }
+    }
+  ]
+}
+```
+
+<Tip>
+  在 `POST /spa-extract` 请求体中传递模板 `id`（例如 `"similarweb-overview"`）作为 `template` 字段。
+</Tip>
+
+---
+
+## POST /spa-extract
+
+提交页面 URL 和提取配置，从 JavaScript 渲染的 SPA 中检索结构化数据。你可以使用自定义字段定义、内置模板，或 `inspect` 模式来发现页面上可用的数据。
+
+### Endpoint
+
+```text
+POST https://api.adscrawl.net/spa-extract
+```
+
+### Authentication
+
+| Header | Type | Description |
+| --- | --- | --- |
+| `x-api-key` | `string` **Required** | 在控制台中创建的完整 API 密钥。 |
+| `content-type` | `string` **Required** | 必须为 `application/json`。 |
+
+### Request body
+
+<ParamField body="url" type="string">
+  目标 SPA 的完整 HTTP(S) URL，使用 80 或 443 端口。大多数模板都需要此字段。对于 `google-trends-explore`，建议改用 `keyword` 字段。SimilarWeb 需要完整的页面 URL，而不是裸域名。
+</ParamField>
+
+<ParamField body="keyword" type="string">
+  推荐用于 `google-trends-explore`。提供 1 到 5 个唯一的、非空的逗号分隔关键词，每个最多 100 个 Unicode 字符（例如 `"adspower,playwright"`）。服务器会自动构建规范的 Trends URL。显式的 `null`、数字或空字符串值将返回 `INVALID_KEYWORD`，且不会回退到 `url`。
+</ParamField>
+
+<ParamField body="mode" type="string">
+  提取模式。默认值为 `"extract"`。
+
+  | Value | Behaviour |
+  | --- | --- |
+  | `"extract"` | 运行字段或模板提取并返回结构化 `data`。 |
+  | `"inspect"` | 返回页面上发现的 DOM 和网络候选方案，以及一个 `suggestedPlan`，你可以将其复制到未来的提取请求中。 |
+</ParamField>
+
+<ParamField body="template" type="string">
+  内置站点模板 ID。提供后，`fields` 由模板而非你的请求提供。可用模板 ID：
+
+  - `"similarweb-overview"` — 网站流量、参与度和排名指标。
+  - `"google-trends-explore"` — 最多 5 个关键词的随时间变化兴趣数据和相对平均值。
+  - `"chrome-web-store-app-info"` — Chrome Web Store 中的扩展元数据（附带 CRX manifest 回退）。
+</ParamField>
+
+<ParamField body="parameters" type="object">
+  所选模板声明的模板特定参数。请参阅 `GET /spa-extract/templates` 中的模板 `input` 规范。
+</ParamField>
+
+<ParamField body="waitUntil" type="string">
+  提取前等待的导航事件。自定义提取默认使用 `"domcontentloaded"`。站点模板优先使用请求值，然后是模板默认值，最后是 `"domcontentloaded"`。
+
+  | Value | Behaviour |
+  | --- | --- |
+  | `"domcontentloaded"` | 等待 DOMContentLoaded — 推荐用于大多数 SPA。 |
+  | `"load"` | 等待 `window.load`，包括图片和样式表。 |
+  | `"networkidle"` | 等待至少 500 毫秒内没有任何网络连接。在长轮询站点上可能超时。 |
+</ParamField>
+
+<ParamField body="waitFor" type="object">
+  在 SPA 导航和操作完成后，等待特定元素或文本出现。`selector` 和 `text` 可以组合使用。
+
+  <Expandable title="waitFor 字段">
+    <ParamField body="selector" type="string">
+      等待第一个匹配的元素变为可见。
+    </ParamField>
+
+    <ParamField body="text" type="string">
+      等待第一个包含此文本的元素变为可见。
+    </ParamField>
+
+    <ParamField body="timeoutMs" type="number">
+      超时时间，单位为毫秒。默认值为 15,000，且永远不会超过剩余的任务超时时间。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="actions" type="array">
+  在提取前按数组顺序执行的可选页面交互。每个步骤的上限为 30 秒。
+
+  <Expandable title="action 类型">
+    <ParamField body="wait" type="object">
+      `{ type: "wait", milliseconds: number }` — 暂停 0 到 30,000 毫秒。
+    </ParamField>
+
+    <ParamField body="waitForSelector" type="object">
+      `{ type: "waitForSelector", selector: string, timeoutMs?: number }` — 等待元素变为可见。
+    </ParamField>
+
+    <ParamField body="click" type="object">
+      `{ type: "click", selector: string }` — 点击第一个匹配的元素。
+    </ParamField>
+
+    <ParamField body="fill" type="object">
+      `{ type: "fill", selector: string, value: string }` — 清除并填充第一个匹配的输入框。
+    </ParamField>
+
+    <ParamField body="press" type="object">
+      `{ type: "press", selector: string, key: string }` — 在第一个匹配的元素上按下按键。
+    </ParamField>
+
+    <ParamField body="scroll" type="object">
+      `{ type: "scroll", selector?: string, x?: number, y?: number }` — 滚动元素到视图中或滚动页面。未提供 `selector` 时 `y` 默认值为 800。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="fields" type="object">
+  `extract` 模式下命名字段定义的映射。每个键都会成为响应 `data` 对象中的一个属性。在不使用模板时使用此字段。
+
+  <Expandable title="field definition">
+    <ParamField body="source" type="string" required>
+      `"dom"` 从页面 HTML 中读取，或 `"network"` 从拦截的 JSON 响应中读取。
+    </ParamField>
+
+    <ParamField body="selector" type="string">
+      DOM 字段的 CSS 选择器。
+    </ParamField>
+
+    <ParamField body="value" type="string">
+      DOM 读取模式：`"text"`（默认）、`"html"` 或 `"attribute"`。
+    </ParamField>
+
+    <ParamField body="attribute" type="string">
+      属性名称 — 在 `value` 为 `"attribute"` 时使用。
+    </ParamField>
+
+    <ParamField body="urlIncludes" type="string">
+      用于匹配网络字段响应 URL 的子字符串。
+    </ParamField>
+
+    <ParamField body="path" type="string">
+      匹配的网络响应内的 JSON 路径，例如 `$.data.metrics[0].value`。
+    </ParamField>
+
+    <ParamField body="multiple" type="boolean">
+      DOM 字段是否应返回所有匹配元素的数组。
+    </ParamField>
+
+    <ParamField body="parse" type="string">
+      将值强制转换为 `"string"`、`"number"`、`"integer"`、`"boolean"` 或 `"json"`。
+    </ParamField>
+
+    <ParamField body="regex" type="string">
+      可选的正则表达式。当包含捕获组时，使用组 1。
+    </ParamField>
+
+    <ParamField body="required" type="boolean">
+      缺少必填字段将返回 `422 SPA_REQUIRED_FIELDS_MISSING`。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="schema" type="object">
+  `fields` 的遗留别名，仅在 `fields` 不存在时使用。字符串值被视为 DOM CSS 选择器。不验证响应 JSON，也不返回 `schemaValid` 或 `schemaErrors` 字段。建议所有新集成都使用 `fields`。
+</ParamField>
+
+<ParamField body="timeoutMs" type="number">
+  任务完成的最长等待时间，单位为毫秒。必须是正整数且不超过 `3,600,000`。
+</ParamField>
+
+<ParamField body="viewport" type="object">
+  渲染页面时使用的视口尺寸。
+
+  <Expandable title="viewport 字段">
+    <ParamField body="width" type="number">
+      视口宽度，单位为像素。
+    </ParamField>
+
+    <ParamField body="height" type="number">
+      视口高度，单位为像素。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="locale" type="string">
+  浏览器语言环境，例如 `"en-US"`。省略时可能遵循受信任代理的元数据。
+</ParamField>
+
+<ParamField body="timezoneId" type="string">
+  IANA 时区标识符，例如 `"Asia/Shanghai"`。省略时可能遵循受信任代理的元数据。
+</ParamField>
+
+<ParamField body="geolocation" type="object">
+  通过 Geolocation API 暴露给页面的地理位置坐标。
+
+  <Expandable title="geolocation 字段">
+    <ParamField body="latitude" type="number">
+      纬度，以十进制度数表示。
+    </ParamField>
+
+    <ParamField body="longitude" type="number">
+      经度，以十进制度数表示。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="proxy" type="object">
+  自定义代理配置。不能与 `countryCode` 同时使用。
+
+  <Expandable title="proxy 字段">
+    <ParamField body="server" type="string">
+      完整的代理 URL，如 `http://host:port` 或 `socks5://host:port`。不能与 `host` 同时使用。
+    </ParamField>
+
+    <ParamField body="protocol" type="string">
+      `"http"` 或 `"socks5"`。用于拆分形式。
+    </ParamField>
+
+    <ParamField body="host" type="string">
+      代理主机。用于拆分形式。
+    </ParamField>
+
+    <ParamField body="port" type="number | string">
+      端口，范围为 1 到 65535。
+    </ParamField>
+
+    <ParamField body="username" type="string">
+      代理用户名。必须与 `password` 一起提供。
+    </ParamField>
+
+    <ParamField body="password" type="string">
+      代理密码。必须与 `username` 一起提供。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="countryCode" type="string">
+  管理的住宅代理区域。不能与 `proxy` 同时使用。
+
+  - `"GLOBAL"` — 从 15 个热门区域中动态选择出口。
+  - 两位字母国家代码 — 优先使用受信任代理并支持动态回退。
+  - 省略 — 自动随机选择受信任代理。
+</ParamField>
+
+<ParamField body="userAgentMode" type="string">
+  `"random"` 让服务器从其库中选择 User-Agent。未显式提供 `userAgent` 的请求默认使用 `"random"`。
+</ParamField>
+
+<ParamField body="userAgentOs" type="string">
+  当 `userAgentMode` 为 `"random"` 时使用的操作系统。可选值：`"windows"`（默认）或 `"macos"`。
+</ParamField>
+
+<ParamField body="userAgent" type="string">
+  显式指定 User-Agent 字符串。覆盖随机选择。
+</ParamField>
+
+<ParamField body="fingerprint" type="object">
+  浏览器指纹设置。省略时，所有信号默认随机，同时保持操作系统、GPU、CPU、内存、字体和设备信号的一致性。
+
+  <Expandable title="fingerprint 字段">
+    <ParamField body="webRtc" type="string">
+      `"forward"`、`"real"` 或 `"disabled"`。
+    </ParamField>
+
+    <ParamField body="webGl" type="string">
+      `"random"` 或 `"real"`。控制 WebGL 厂商和渲染器元数据。
+    </ParamField>
+
+    <ParamField body="webGpu" type="string">
+      `"random"`、`"real"` 或 `"disabled"`。
+    </ParamField>
+
+    <ParamField body="webGlImage" type="string">
+      `"random"` 或 `"real"`。控制 WebGL 图像噪声。
+    </ParamField>
+
+    <ParamField body="canvas" type="string">
+      `"random"` 或 `"real"`。控制 canvas 噪声。
+    </ParamField>
+
+    <ParamField body="audioContext" type="string">
+      `"random"` 或 `"real"`。控制音频指纹噪声。
+    </ParamField>
+
+    <ParamField body="clientRects" type="string">
+      `"random"` 或 `"real"`。控制布局测量噪声。
+    </ParamField>
+
+    <ParamField body="speechVoices" type="string">
+      `"random"` 或 `"real"`。返回与操作系统匹配的语音列表。
+    </ParamField>
+
+    <ParamField body="fonts" type="string">
+      `"random"` 或 `"real"`。返回与操作系统匹配的字体列表。
+    </ParamField>
+
+    <ParamField body="hardware" type="string">
+      `"random"` 或 `"real"`。生成一致的 CPU 线程数和内存配对。
+    </ParamField>
+
+    <ParamField body="doNotTrack" type="string">
+      `"random"`、`"enabled"` 或 `"disabled"`。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="cookies" type="array">
+  在导航前注入浏览器上下文的 Cookie 列表。
+
+  <Warning>
+    `google-trends-explore` 会忽略省略、`null` 或空数组值。在 Trends 请求中提供任何非空或格式错误的 Cookie 将返回 `400 INVALID_TRENDS_COOKIES`。
+  </Warning>
+
+  <Expandable title="cookie 字段">
+    <ParamField body="name" type="string" required>
+      Cookie 名称。
+    </ParamField>
+
+    <ParamField body="value" type="string" required>
+      Cookie 值。
+    </ParamField>
+
+    <ParamField body="domain" type="string" required>
+      目标域名，如 `.example.com`。
+    </ParamField>
+
+    <ParamField body="path" type="string">
+      Cookie 路径。默认值为 `/`。
+    </ParamField>
+
+    <ParamField body="secure" type="boolean">
+      是否仅通过 HTTPS 发送 Cookie。
+    </ParamField>
+
+    <ParamField body="httpOnly" type="boolean">
+      是否禁止客户端 JavaScript 访问 Cookie。
+    </ParamField>
+
+    <ParamField body="sameSite" type="string">
+      SameSite 属性。
+    </ParamField>
+
+    <ParamField body="session" type="boolean">
+      设置为 `true` 表示会话 Cookie。
+    </ParamField>
+
+    <ParamField body="expirationDate" type="number">
+      Unix 过期时间戳，单位为秒。也接受 `expires` 或 `expiry`。
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Responses
+
+| Code | Content-Type | Description |
+| --- | --- | --- |
+| `200` | `application/json` | 检查结果或提取的结构化数据。 |
+| `400` | `application/json` | URL、关键词、代理、区域、User-Agent 或 Trends Cookie 无效。 |
+| `401` | `application/json` | `x-api-key` 缺失或无效。 |
+| `402` | `application/json` | 余额不足（`INSUFFICIENT_CREDITS`）。 |
+| `404` | `application/json` | Chrome Web Store 列表不可用，且 CRX 回退无法恢复。 |
+| `422` | `application/json` | 必填字段缺失、模板/字段配置无效，或 Worker 拒绝了任务。 |
+| `429` | `application/json` | 任务请求频率受限，或 Google Trends 上游 429。 |
+| `502` | `application/json` | 代理或目标失败、Trends 数据无效，或所有候选身份已耗尽。 |
+| `503` | `application/json` | 队列、Worker 或管理资源不可用；或 Trends 身份计划已过期。 |
+| `504` | `application/json` | 任务、导航或代理超时；或 Trends 响应未观察到。 |
+| `500` | `application/json` | 未分类的任务执行失败。 |
+
+## Code examples
+
+<Tabs>
+  <Tab title="Custom fields">
+    使用你自己的字段定义从任意 SPA 中提取特定 DOM 元素。
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
+      -H "content-type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "url": "https://example.com/dashboard",
+        "mode": "extract",
+        "waitUntil": "domcontentloaded",
+        "waitFor": { "selector": "h1", "timeoutMs": 15000 },
+        "fields": {
+          "title":    { "source": "dom", "selector": "h1",           "parse": "string" },
+          "subtitle": { "source": "dom", "selector": "p.subtitle",   "parse": "string" },
+          "count":    { "source": "dom", "selector": ".metric-value", "parse": "number" }
+        },
+        "countryCode": "GLOBAL",
+        "userAgentMode": "random"
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch("https://api.adscrawl.net/spa-extract", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": "YOUR_API_KEY",
+      },
+      body: JSON.stringify({
+        url: "https://example.com/dashboard",
+        mode: "extract",
+        waitUntil: "domcontentloaded",
+        waitFor: { selector: "h1", timeoutMs: 15000 },
+        fields: {
+          title:    { source: "dom", selector: "h1",            parse: "string" },
+          subtitle: { source: "dom", selector: "p.subtitle",    parse: "string" },
+          count:    { source: "dom", selector: ".metric-value", parse: "number" },
+        },
+        countryCode: "GLOBAL",
+        userAgentMode: "random",
+      }),
+    });
+    
+    const result = await response.json();
+    console.log(result.data);
+    ```
+
+    ```python Python
+    import httpx
+    
+    response = httpx.post(
+        "https://api.adscrawl.net/spa-extract",
+        headers={
+            "content-type": "application/json",
+            "x-api-key": "YOUR_API_KEY",
+        },
+        json={
+            "url": "https://example.com/dashboard",
+            "mode": "extract",
+            "waitUntil": "domcontentloaded",
+            "waitFor": {"selector": "h1", "timeoutMs": 15000},
+            "fields": {
+                "title":    {"source": "dom", "selector": "h1",             "parse": "string"},
+                "subtitle": {"source": "dom", "selector": "p.subtitle",     "parse": "string"},
+                "count":    {"source": "dom", "selector": ".metric-value",  "parse": "number"},
+            },
+            "countryCode": "GLOBAL",
+            "userAgentMode": "random",
+        },
+    )
+    
+    response.raise_for_status()
+    print(response.json()["data"])
+    ```
+
+    </CodeGroup>
+  </Tab>
+  <Tab title="SimilarWeb template">
+    使用 `similarweb-overview` 模板获取任意域名的流量和排名指标。
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
+      -H "content-type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "template": "similarweb-overview",
+        "url": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
+        "countryCode": "GLOBAL"
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch("https://api.adscrawl.net/spa-extract", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": "YOUR_API_KEY",
+      },
+      body: JSON.stringify({
+        template: "similarweb-overview",
+        url: "https://www.similarweb.com/website/dolphin-anty.com/#overview",
+        countryCode: "GLOBAL",
+      }),
+    });
+    
+    const result = await response.json();
+    console.log(result.data.globalRank, result.data.totalVisits);
+    ```
+
+    ```python Python
+    import httpx
+    
+    response = httpx.post(
+        "https://api.adscrawl.net/spa-extract",
+        headers={
+            "content-type": "application/json",
+            "x-api-key": "YOUR_API_KEY",
+        },
+        json={
+            "template": "similarweb-overview",
+            "url": "https://www.similarweb.com/website/dolphin-anty.com/#overview",
+            "countryCode": "GLOBAL",
+        },
+    )
+    
+    response.raise_for_status()
+    data = response.json()["data"]
+    print(data["globalRank"], data["totalVisits"])
+    ```
+
+    </CodeGroup>
+  </Tab>
+  <Tab title="Google Trends">
+    使用 `google-trends-explore` 模板获取最多 5 个关键词的随时间变化兴趣数据。
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl -sS -X POST "https://api.adscrawl.net/spa-extract" \
+      -H "content-type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{
+        "template": "google-trends-explore",
+        "keyword": "adspower,playwright"
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch("https://api.adscrawl.net/spa-extract", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": "YOUR_API_KEY",
+      },
+      body: JSON.stringify({
+        template: "google-trends-explore",
+        keyword: "adspower,playwright",
+      }),
+    });
+    
+    const result = await response.json();
+    console.log(result.data.averages);
+    console.log("source:", result.source, "cached:", result.cached);
+    ```
+
+    ```python Python
+    import httpx
+    
+    response = httpx.post(
+        "https://api.adscrawl.net/spa-extract",
+        headers={
+            "content-type": "application/json",
+            "x-api-key": "YOUR_API_KEY",
+        },
+        json={
+            "template": "google-trends-explore",
+            "keyword": "adspower,playwright",
+        },
+    )
+    
+    response.raise_for_status()
+    result = response.json()
+    print(result["data"]["averages"])
+    print("source:", result["source"], "cached:", result["cached"])
+    ```
+
+    </CodeGroup>
+  </Tab>
+</Tabs>
+
+## Response examples
+
+<Tabs>
+  <Tab title="extract mode">
+    由任何 `mode: "extract"` 请求返回。`data` 对象的键与你的 `fields` 定义（或模板的输出字段）匹配。
+
+    ```json
+    {
+      "mode": "extract",
+      "page": {
+        "url": "https://example.com/dashboard",
+        "title": "Example Dashboard"
+      },
+      "data": {
+        "title": "Example Dashboard"
+      },
+      "missingFields": []
+    }
+    ```
+  </Tab>
+  <Tab title="Google Trends response">
+    成功的 Trends 响应包含额外的顶层元数据：`source`、`cached`、`stale`、`collectedAt` 和 `attempts`。
+
+    ```json
+    {
+      "mode": "extract",
+      "page": {
+        "url": "https://trends.google.com/trends/explore?q=adspower%2Cplaywright",
+        "title": "Google Trends"
+      },
+      "data": {
+        "averages": [
+          { "query": "adspower",    "extractedValue": 42 },
+          { "query": "playwright",  "extractedValue": 71 }
+        ],
+        "interestOverTime": []
+      },
+      "missingFields": [],
+      "source": "sunbrowser",
+      "cached": false,
+      "stale": false,
+      "collectedAt": "2026-08-03T02:04:05.123456789Z",
+      "attempts": 2
+    }
+    ```
+
+    <ResponseField name="source" type="string">
+      `"sunbrowser"` — 结果来自实时浏览器采集。`"cache"` — 结果来自服务器缓存。
+    </ResponseField>
+
+    <ResponseField name="cached" type="boolean">
+      此响应是否来自缓存。
+    </ResponseField>
+
+    <ResponseField name="stale" type="boolean">
+      缓存结果是否已过期。
+    </ResponseField>
+
+    <ResponseField name="collectedAt" type="string">
+      结果实际采集时的 RFC3339Nano 时间戳。
+    </ResponseField>
+
+    <ResponseField name="attempts" type="number">
+      采集尝试次数。缓存命中响应使用 `0`；过期响应使用 Worker 报告时的尝试次数。
+    </ResponseField>
+  </Tab>
+  <Tab title="inspect mode">
+    使用 `inspect` 模式发现提取候选方案。将 `suggestedPlan` 复制到未来的 `extract` 请求中。
+
+    ```json
+    {
+      "mode": "inspect",
+      "page": {
+        "url": "https://example.com/dashboard",
+        "title": "Example Dashboard"
+      },
+      "candidates": {
+        "dom": { "metrics": [], "tables": [] },
+        "network": []
+      },
+      "suggestedPlan": {
+        "fields": {},
+        "schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error reference
+
+| Code | Error code | Cause |
+| --- | --- | --- |
+| `400` | `INVALID_COUNTRY_CODE` | `countryCode` 值未被识别。 |
+| `400` | `INVALID_KEYWORD` | `keyword` 为 `null`、数字或空字符串。 |
+| `400` | `INVALID_TRENDS_COOKIES` | 在 `google-trends-explore` 请求中提供了非空或格式错误的 `cookies`。 |
+| `401` | — | `x-api-key` 缺失或无效。 |
+| `402` | `INSUFFICIENT_CREDITS` | 账户余额过低。 |
+| `404` | `CHROME_WEB_STORE_LISTING_UNAVAILABLE` | Chrome Web Store 页面列表不可用，且 CRX manifest 回退无法恢复。 |
+| `422` | `SPA_REQUIRED_FIELDS_MISSING` | 一个或多个 `required: true` 字段未找到。 |
+| `429` | — | 请求频率受限，或 Google Trends 上游频率限制触发。 |
+| `502` | — | 代理或目标失败、Trends 数据无效，或所有候选身份已耗尽。 |
+| `503` | — | 队列、Worker 或管理代理资源不可用；或 Trends 身份计划已过期。 |
+| `504` | — | 导航或代理超时；或 Trends 响应未观察到。 |
+| `500` | — | 未分类的内部错误。 |
+
+<Note>
+  一次请求验证后会消耗 1 积分，在任务入队之前扣除。请求体限制为 1 MiB。
+</Note>

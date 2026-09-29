@@ -1,0 +1,154 @@
+---
+title: "POST /cdp/live-token — 获取 Live CDP 控制令牌"
+sidebarTitle: "Live Control Token"
+description: "为现有 CDP 会话签发一次性、30 秒有效期的控制令牌，以通过专用 WebSocket 连接进行实时交互式控制。"
+---
+
+当你需要接入并实时交互一个正在运行的 CDP 会话时，例如解决验证码、审查页面状态，或执行自动化无法自动处理的操作，请使用这些端点来获取短时效的控制令牌，并向该会话开启实时 WebSocket 连接。
+
+---
+
+## POST /cdp/live-token
+
+为活跃的 CDP 会话签发一次性控制令牌。返回的 `controlToken` 已嵌入到 `controlUrl` 中，自签发后 30 秒失效。将 `controlUrl` 直接传入 WebSocket 构造函数即可开始实时控制。
+
+### 请求头
+
+<ParamField header="x-api-key" type="string" required>
+  你来自 [控制台](https://app.adscrawl.net/dashboard/) 的完整 API 密钥。必须拥有目标会话的所有权。
+</ParamField>
+
+<ParamField header="content-type" type="string" required>
+  必须为 `application/json`。
+</ParamField>
+
+### 请求体
+
+<ParamField body="sessionId" type="string" required>
+  你想要实时控制的活跃 CDP 会话 ID。
+</ParamField>
+
+### 响应字段
+
+<ResponseField name="ok" type="boolean">
+  令牌签发成功时为 `true`。
+</ResponseField>
+
+<ResponseField name="controlUrl" type="string">
+  一个已将一次性 `controlToken` 以查询参数形式嵌入的 `wss://` WebSocket URL。直接将其传给 `new WebSocket(...)`，切勿替换或修改令牌。
+</ResponseField>
+
+<ResponseField name="expiresAt" type="number">
+  `controlToken` 失效的 Unix 时间戳，单位为毫秒。该令牌有效期为 30 秒，且只能使用一次。
+</ResponseField>
+
+### 请求示例
+
+<CodeGroup>
+
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/cdp/live-token" \
+  -H "content-type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{"sessionId": "SESSION_ID"}'
+```
+
+```json Body JSON
+{
+  "sessionId": "SESSION_ID"
+}
+```
+
+</CodeGroup>
+
+### 响应示例
+
+```json 200 OK
+{
+  "ok": true,
+  "controlUrl": "wss://api.adscrawl.net/cdp/live/SESSION_ID?controlToken=<single-use-token>",
+  "expiresAt": 1785726630000
+}
+```
+
+| 状态码 | 含义 |
+| --- | --- |
+| `200` | 令牌已签发；响应体中包含 `controlUrl` 和 `expiresAt`。 |
+| `400` | 请求体中缺少 `sessionId`。 |
+| `401` / `403` | API 密钥无效，或没有目标会话的所有权。 |
+| `404` / `409` / `410` | 会话不存在、正在停止或已过期。 |
+| `503` | 会话后端不可用。 |
+| `500` | 签发或存储控制令牌失败。 |
+
+<Warning>
+  `controlToken` 在 **30 秒** 后失效，且只能被消费 **一次**。如果 WebSocket 连接失败或未在规定时间内打开，请再次调用 `POST /cdp/live-token` 获取新令牌。
+</Warning>
+
+---
+
+## WS /cdp/live/:sessionId
+
+向目标会话开启实时控制 WebSocket 连接。服务器会验证 `controlToken`，连接到会话后端，然后升级你的客户端连接。一旦连接建立，CDP 消息将被双向代理，你将获得完整的交互式控制权。
+
+### 路径参数
+
+<ParamField path="sessionId" type="string" required>
+  `POST /cdp/live-token` 返回的 `controlUrl` 中嵌入的会话 ID。
+</ParamField>
+
+### 查询参数
+
+<ParamField query="controlToken" type="string" required>
+  来自 `POST /cdp/live-token` 的一次性令牌。必须在签发后 30 秒内使用，且只能消费一次。
+</ParamField>
+
+### JavaScript 示例
+
+```javascript JavaScript
+// Step 1: 请求实时控制令牌
+const token = await fetch("https://api.adscrawl.net/cdp/live-token", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-api-key": "YOUR_API_KEY",
+  },
+  body: JSON.stringify({ sessionId: "SESSION_ID" }),
+}).then((r) => r.json());
+
+// Step 2: 使用返回的 controlUrl 打开实时控制 WebSocket
+const socket = new WebSocket(token.controlUrl);
+
+socket.addEventListener("open", () => {
+  console.log("Live control session connected");
+});
+
+socket.addEventListener("close", (event) => {
+  console.log("Session closed:", event.code, event.reason);
+});
+```
+
+### WebSocket 关闭原因
+
+当实时控制 WebSocket 关闭时，服务器会发送以下原因码之一：
+
+<Accordion title="关闭原因码">
+  | 码 | 原因 | 起因 |
+  | --- | --- | --- |
+  | `1000` | `cdp_upstream_closed` | 上游 CDP 会话正常关闭。 |
+  | `1000` | `idle_timeout` | 会话超过了配置的 `idleTimeoutMs`。 |
+  | `1000` | `max_timeout` | 会话超过了配置的 `maxSessionMs`。 |
+  | `1011` | `cdp_upstream_disconnected` | 上游 CDP 连接意外断开。 |
+  | `1011` | `cdp_upstream_error` | 上游 CDP 连接发生错误。 |
+</Accordion>
+
+| 状态码 | 含义 |
+| --- | --- |
+| `101` | WebSocket 升级成功；实时控制现已激活。 |
+| `401` | `controlToken` 无效、已过期、已使用过，或与 `sessionId` 不匹配。 |
+| `404` / `409` / `410` | 会话不存在、正在停止或已过期。 |
+| `502` | 在 101 升级前无法连接到会话后端。 |
+| `503` | 会话后端或控制基础设施不可用。 |
+
+<Info>
+  实时控制令牌专为短时手动或有条件交互设计。对于完全自动化的工作流，请直接通过 `cdpBaseUrl` 使用 Playwright 或 Puppeteer 驱动会话。
+</Info>

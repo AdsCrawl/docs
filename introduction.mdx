@@ -1,0 +1,54 @@
+---
+title: "AdsCrawl: Browser Automation API for Scraping the Web"
+sidebarTitle: "Introduction"
+description: "AdsCrawl is a browser automation API for developers who need rendered HTML, structured data, screenshots, and full CDP sessions via residential proxies."
+---
+
+AdsCrawl gives your application a full browser environment — backed by residential proxies — without the overhead of managing infrastructure. Send a request with a URL, and AdsCrawl spins up a real Chromium browser, renders the page, and returns exactly what you asked for: raw HTML, clean Markdown, structured JSON, a PNG screenshot, or a live CDP connection for multi-step automation. Whether you're building a scraper, a monitoring tool, a data pipeline, or an AI workflow, AdsCrawl handles the rendering, proxy routing, and fingerprinting so you can focus on your data.
+
+## What you can do
+
+AdsCrawl exposes five core capabilities through a single base URL (`https://api.adscrawl.net`):
+
+- **HTML extraction** — Fetch fully rendered HTML from any URL, or extract clean Markdown and structured article JSON using the built-in Readability parser.
+- **Structured data extraction** — Pull specific fields from dynamic single-page apps using CSS selectors or intercepted network responses, with optional pre-built site templates for popular targets.
+- **Screenshots** — Capture a full-page PNG or isolate a single element with a CSS selector.
+- **Remote CDP** — Create a dedicated Chromium session and connect Playwright or Puppeteer over the Chrome DevTools Protocol for scripted, multi-step browser automation.
+- **Cloud Browsers** — Launch a persistent browser profile with your own proxy and cookies, view it live in the interactive viewer, stop it, and reuse the saved profile on your next run.
+
+## Explore the docs
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create an account, get your API key, and make your first request in minutes.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Learn how to pass your API key and understand session tokens and data tokens.
+  </Card>
+  <Card title="Browser Tasks" icon="browser" href="/concepts/browser-tasks">
+    HTML extraction, structured data, and screenshots — all synchronous, all proxied.
+  </Card>
+  <Card title="Remote CDP" icon="plug" href="/concepts/remote-cdp">
+    Connect Playwright or Puppeteer to a remote browser over CDP for full automation.
+  </Card>
+  <Card title="Cloud Browsers" icon="cloud" href="/concepts/cloud-browsers">
+    Persistent profiles, live viewer, proxy-per-session, and reusable state.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/html">
+    Complete endpoint reference with request and response schemas.
+  </Card>
+</CardGroup>
+
+## How it works
+
+Every AdsCrawl request follows the same pattern regardless of which API you use:
+
+1. **Send a request** — Your server sends an HTTP request with your API key and the target URL (plus any options such as `waitUntil`, `contentMode`, or `countryCode`).
+2. **Browser renders the page** — AdsCrawl launches a Chromium instance, routes it through a residential proxy, injects any cookies or fingerprint settings you specified, and waits for the page to reach the load state you requested.
+3. **Get back your data** — The rendered HTML, Markdown, JSON, PNG binary, or CDP session URL is returned directly in the HTTP response. There is no polling or webhook step for the synchronous APIs.
+
+For stateful workflows — scripted navigation, form submission, multi-step login flows — use the Remote CDP or Cloud Browser APIs, which keep the browser alive across multiple requests.
+
+<Note>
+  Residential proxies are built into every request. You can route through a specific two-letter country code, use `GLOBAL` for dynamic region selection across 15 popular regions, or supply your own custom proxy. There is no separate proxy subscription required.
+</Note>

@@ -1,0 +1,187 @@
+---
+title: "Ruby SDK for AdsCrawl"
+description: "安装并使用 AdsCrawl Ruby SDK 获取渲染内容、截图、结构化数据并管理远程 CDP 会话。支持 Ruby 3.1+，仅使用标准库。"
+sidebarTitle: "Ruby"
+---
+
+AdsCrawl Ruby SDK 适用于 Ruby 3.1 及以上版本。它仅使用 Ruby 标准库，支持哈希和关键字参数（映射 HTTP API 的 camelCase 字段名），并提供显式 HTTP 超时机制以及凭证脱敏的错误信息。
+
+<Note>
+  请将 API 密钥保存在服务端代码中。切勿在客户端应用中暴露 API 密钥。
+</Note>
+
+## 安装
+
+```bash
+gem install adscrawl
+```
+
+或将其加入你的 Bundle：
+
+```bash
+bundle add adscrawl
+```
+
+<Card title="adscrawl-ruby on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-ruby">
+  查看源代码、可运行示例和发布版本。
+</Card>
+
+## 认证并发起首次请求
+
+在控制台中[创建 API 密钥](https://app.adscrawl.net/register/?utm_source=rubygems&utm_medium=sdk&utm_campaign=adscrawl-ruby)，并在服务器环境中设置 `ADSCRAWL_API_KEY`。你也可以将密钥直接传递给 `AdsCrawl::Client.new(api_key: "...")`。
+
+```ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new
+markdown = client.markdown(
+  url: "https://www.adscrawl.net",
+  waitUntil: "domcontentloaded"
+)
+puts markdown
+```
+
+## 渲染内容与截图
+
+```ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new
+html = client.html(url: "https://www.adscrawl.net")
+article = client.article(url: "https://www.adscrawl.net")
+puts [article["title"], article["textContent"]]
+
+png = client.screenshot(
+  url: "https://www.adscrawl.net",
+  viewport: {width: 1440, height: 900},
+  fullPage: true,
+  waitUntil: "load"
+)
+File.binwrite("page.png", png)
+```
+
+`html` 返回 HTML，`markdown` 返回 Markdown，`article` 返回 Hash，`screenshot` 返回二进制 PNG 数据。页面选项包括 `viewport`、`locale`、`cookies`、自定义 `proxy`、托管的 `countryCode`、`fingerprint`、服务端 `timeoutMs` 以及导航 `waitUntil`。自定义代理与托管国家/地区不能同时使用。
+
+## 代理与指纹
+
+```ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new
+server = ENV["ADSCRAWL_PROXY_SERVER"]
+username = ENV["ADSCRAWL_PROXY_USERNAME"]
+password = ENV["ADSCRAWL_PROXY_PASSWORD"]
+raise "Set both proxy username and password, or neither." if username.nil? != password.nil?
+raise "Set ADSCRAWL_PROXY_SERVER with proxy credentials." if server.nil? && (username || password)
+
+routing = {countryCode: "GLOBAL"}
+if server
+  proxy = {server: server}
+  proxy.merge!(username: username, password: password) if username && password
+  routing = {proxy: proxy}
+end
+
+png = client.screenshot(
+  **routing,
+  url: "https://www.browserscan.net/",
+  viewport: {width: 1440, height: 900},
+  fullPage: true,
+  waitUntil: "networkidle",
+  timeoutMs: 60_000,
+  userAgentMode: "random",
+  userAgentOs: "windows",
+  fingerprint: {
+    webRtc: "forward", webGl: "random", webGpu: "random",
+    webGlImage: "random", canvas: "random", audioContext: "random",
+    clientRects: "random", speechVoices: "random", fonts: "random",
+    hardware: "random", doNotTrack: "random"
+  },
+  timeout_ms: 75_000
+)
+File.binwrite("browserscan.png", png)
+```
+
+AdsCrawl 使用真实浏览器，支持可配置的路由和浏览器指纹。随机设置会生成一个覆盖操作系统、GPU、硬件、字体及相关信号的统一配置。该浏览器工作流已经过验证，可以访问并渲染 BrowserScan、Pixelscan 和 IPhey，并返回截图。
+
+## 结构化提取
+
+```ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new
+puts client.spa.templates["templates"]
+
+result = client.spa.extract(
+  url: "https://www.adscrawl.net",
+  fields: {
+    title: {source: "dom", selector: "h1", value: "text", required: true}
+  }
+)
+puts result.dig("data", "title")
+
+inspection = client.spa.inspect(url: "https://www.adscrawl.net")
+puts inspection["candidates"]
+```
+
+## 远程 CDP 浏览器
+
+```ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new
+session = client.cdp.create(
+  idleTimeoutMs: 600_000,
+  maxSessionMs: 3_600_000,
+  browserSettings: {viewport: {width: 1440, height: 900}}
+)
+begin
+  version = client.cdp.get_version(session)
+  puts version["Browser"]
+  # Connect a CDP-compatible Ruby library to session["cdpBaseUrl"].
+ensure
+  client.cdp.close(session["sessionId"])
+end
+```
+
+`client.cdp.list` 返回活跃会话列表。`get_version` 验证会话令牌 URL，并故意不携带 API 密钥。CDP 连接 URL 包含敏感信息，请勿将其记录到日志中。
+
+## 持久化云浏览器
+
+```ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new
+launched = client.cloud_browsers.launch(
+  proxy: {server: ENV.fetch("ADSCRAWL_PROXY_SERVER")},
+  tabs: ["https://www.adscrawl.net"]
+)
+browser_id = launched["id"]
+begin
+  profile = client.cloud_browsers.get(browser_id)
+  puts profile.dig("runtime", "status")
+ensure
+  client.cloud_browsers.stop(browser_id)
+end
+```
+
+API 密钥启动要求显式设置顶层自定义代理。`stopping` 响应表示关闭正在等待中，请轮询 `get` 直到状态变为 `stopped`。启动失败时，清理配置文件的 ID 可能作为 `APIError#resource_id` 暴露。
+
+## 配置与错误处理
+
+```ruby
+require "adscrawl"
+
+client = AdsCrawl::Client.new(base_url: "https://api.adscrawl.net", timeout_ms: 90_000)
+begin
+  puts client.markdown(
+    {url: "https://www.adscrawl.net", timeoutMs: 60_000},
+    timeout_ms: 75_000
+  )
+rescue AdsCrawl::APIError => error
+  puts [error.status, error.api_code, error.trace_id]
+rescue AdsCrawl::TimeoutError
+  puts "Inspect remote sessions before retrying."
+end
+```
+
+API 密钥默认为 `ADSCRAWL_API_KEY`。基础 URL 默认依次为 `ADSCRAWL_BASE_URL`、`ADSCRAWL_API_URL`，然后是 `https://api.adscrawl.net`。错误类型包括 `APIError`、`TimeoutError`、`ConnectionError` 和 `ResponseError`。API 响应体会进行凭证脱敏处理。HTTP 超时时间包含响应体的读取。请求不会自动重试。

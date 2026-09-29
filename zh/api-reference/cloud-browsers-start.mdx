@@ -1,0 +1,215 @@
+---
+title: "启动云浏览器 — POST /cloud-browsers/:id/start"
+sidebarTitle: "Start Browser"
+description: "启动已保存的云浏览器配置并等待其进入运行状态。仅在浏览器就绪后返回 200 及可用的 connectUrl。"
+---
+
+通过配置的 `id` 启动已保存的云浏览器配置。此接口会阻塞直到浏览器进入 `running` 状态，然后返回 `200` 及完整的运行时对象（包括 `connectUrl`），以便你立即打开交互式会话。成功的 `200` 响应意味着 **计费已开始**：从此时起直到你调用 `POST /cloud-browsers/{id}/stop`，每分钟启动时间消耗 1 积分。
+
+## 认证
+
+每次请求需包含以下之一：
+
+| 方式 | Header |
+| --- | --- |
+| API 密钥 | `x-api-key: <API_KEY>` |
+| Session JWT | `Authorization: Bearer <SESSION_JWT>` |
+| 控制台会话 cookie | _(由浏览器自动发送)_ |
+
+## 路径参数
+
+<ParamField path="id" type="string (UUID)" required>
+  由 `POST /cloud-browsers`（创建）或 `GET /cloud-browsers`（列表）返回的持久配置标识符。此值与运行时 `sessionId` 不同。
+</ParamField>
+
+## 请求体
+
+请求体必须为单个 JSON 对象，最大 1 MiB。
+
+<ParamField body="proxy" type="object" required>
+  每次使用 `x-api-key` 启动时必需。即使在配置的 `browserSettings` 中已保存代理，每次启动请求也必须提供有效的顶层 `proxy`。已保存的代理、托管 `countryCode` 或上次运行的代理均不能满足此要求。
+
+  请提供 `server` 形式或拆分的 `protocol` + `host` + `port` 形式：
+
+  - `server` — 完整 URL：`http://proxy.example.com:8080` 或 `socks5://proxy.example.com:1080`。必须包含显式端口（1–65535）。不能包含嵌入的凭证、路径、查询参数或片段。不能与 `host` 同时使用。
+  - `protocol` — `http` 或 `socks5`。
+  - `host` — 代理主机名。
+  - `port` — 整数或数字字符串，范围 1 到 65535。
+
+  无需认证时省略 `username` 和 `password`，或同时提供两者且均为非空字符串。代理失败绝不能回退到直连。启动覆盖仅影响本次运行，不会更新已保存的配置。
+</ParamField>
+
+<ParamField body="apiKeyId" type="string (UUID)">
+  使用会话 cookie 或 `Authorization: Bearer` 认证时必需。选择属于你账户的活跃、未过期 API 密钥。使用 `x-api-key` 认证时当前密钥会自动选中，如果同时提供了 `apiKeyId`，则必须与当前密钥一致。
+</ParamField>
+
+<ParamField body="countryCode" type="string">
+  仅对会话 / Bearer 调用者可用 — 不接受 `x-api-key`。使用 `GLOBAL` 表示随机热门地区，或使用两位 ISO 代码如 `FR` 以优先选择该地区的可信代理并启用动态回退。空字符串不是有效选项。不能与同一请求中的 `proxy` 同时使用。此覆盖仅影响本次运行，不会更新已保存的配置。
+</ParamField>
+
+<ParamField body="cookies" type="array">
+  可选的每次运行 Cookie 覆盖。仅对本次运行优先于配置中保存的所有 Cookie，不会更新已保存的配置。
+</ParamField>
+
+<ParamField body="fingerprint" type="object">
+  可选的每次运行指纹覆盖，按字段与已保存的设置合并，仅影响本次运行。支持的字段：`webRtc`（`forward` | `real` | `disabled`）、`webGl` / `webGlImage` / `canvas` / `audioContext` / `clientRects` / `speechVoices` / `fonts` / `hardware`（均为 `random` | `real`）、`webGpu`（`random` | `real` | `disabled`）、`doNotTrack`（`random` | `enabled` | `disabled`）。旧版 `hardwareConcurrency` 和 `deviceMemory` 接受整数 1–64。无效或冲突的组合会返回 `INVALID_FINGERPRINT_SETTINGS`。
+</ParamField>
+
+## 响应
+
+### 200 — 浏览器运行中
+
+浏览器已进入 `running` 状态。计费从此响应开始。
+
+<ResponseField name="ok" type="boolean">
+  成功时始终为 `true`。
+</ResponseField>
+
+<ResponseField name="runtime" type="object">
+  确认时的运行时状态。
+
+  <Expandable title="Runtime 字段">
+    <ResponseField name="runtimeKind" type="string">
+      `neko` 或 `worker_cdp`。`neko` 省略 `cdpBaseUrl`。
+    </ResponseField>
+
+    <ResponseField name="status" type="string">
+      成功的 `200` 响应中始终为 `"running"`。
+    </ResponseField>
+
+    <ResponseField name="sessionId" type="string">
+      活跃会话标识符。
+    </ResponseField>
+
+    <ResponseField name="expiresAt" type="string (RFC3339)">
+      会话过期时间戳。
+    </ResponseField>
+
+    <ResponseField name="connectUrl" type="string">
+      交互式浏览器查看器的直接 URL。在已登录配置所有者的浏览器中打开。请按原样使用返回的 URL。
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  计费从成功的 `200` 响应开始，直到你通过 `POST /cloud-browsers/{id}/stop` 确认停止，按 **每分钟启动时间 1 积分** 计算。关闭查看器标签页或失去连接 **不会** 停止计费。
+</Note>
+
+### 400 — Bad Request
+
+`PROXY_REQUIRED`（API 密钥启动缺少顶层代理）、`INVALID_PROXY`、`COUNTRY_PROXY_CONFLICT`（同时提供了 `proxy` 和 `countryCode`）、`INVALID_COUNTRY_CODE`、`INVALID_FINGERPRINT_SETTINGS`，或 Cookie 无效。使用会话 / Bearer 认证时 `apiKeyId` 缺失或无效也会返回 `400`。
+
+### 401 — Unauthenticated
+
+认证缺失、无效或已过期。
+
+### 402 — Payment Required
+
+`PAID_PLAN_REQUIRED`（没有活跃的付费套餐）或 `INSUFFICIENT_CREDITS`（可用积分少于 1 分）。响应包含 `balance` 和 `requiredCredits` 字段。
+
+### 403 — Forbidden
+
+提供的 `apiKeyId` 属于其他用户，或与认证密钥不匹配。
+
+### 404 — Not Found
+
+配置不存在或属于其他用户。
+
+### 409 — Conflict
+
+<Accordion title="CLOUD_BROWSER_CONCURRENCY_LIMIT">
+  你的运行配额已满或设为 `0`。停止另一个浏览器释放槽位后再重试。响应包含 `runningLimit` 和 `runningCount`。
+</Accordion>
+
+<Accordion title="浏览器已在运行（无错误码）">
+  此配置已存在处于 `starting`、`running` 或 `stopping` 状态的活跃会话。请先停止它，等待变为 `stopped`，然后再次启动。
+</Accordion>
+
+### 502 — Runtime Rejection
+
+`CLOUD_RUNTIME_AUTH_FAILED`、`CLOUD_RUNTIME_NOT_FOUND`、`CLOUD_RUNTIME_HTTP_ERROR`、`CLOUD_RUNTIME_INVALID_RESPONSE` 或 `CLOUD_RUNTIME_CONTROLLER_FAILED`。
+
+### 503 — 容量或代理错误
+
+`CLUSTER_NO_CAPACITY`（包含可空的 `nextAvailableAt` 和 `retryAfterMs`）、`CDP session capacity exhausted`、`MANAGED_PROXY_UNAVAILABLE`、`DYNAMIC_PROXY_NOT_CONFIGURED`、`CLOUD_RUNTIME_UNREACHABLE` 或 `CLOUD_RUNTIME_CONFIG_INVALID`。代理失败绝不会回退到直连 — 请在重试前修复代理。
+
+### 504 — 启动超时
+
+`CLOUD_RUNTIME_TIMEOUT`。超时不能证明运行时不存在。请检查配置状态并在需要时调用停止；运行槽位会保留直到清理确认完成。
+
+### 500 — Internal Error
+
+内部服务故障。
+
+## 请求示例
+
+<CodeGroup>
+
+```bash API Key with Proxy
+curl --fail-with-body --silent --show-error --max-time 65 \
+  -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/start' \
+  -H 'x-api-key: <api-key>' \
+  -H 'content-type: application/json' \
+  --data '{
+  "proxy": {
+    "server": "http://proxy.example.com:8080",
+    "username": "<proxy-user>",
+    "password": "<proxy-password>"
+  }
+}'
+```
+
+```bash Session / Bearer with countryCode
+curl --fail-with-body --silent --show-error --max-time 65 \
+  -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/start' \
+  -H 'Authorization: Bearer <SESSION_JWT>' \
+  -H 'content-type: application/json' \
+  --data '{
+  "apiKeyId": "<api-key-id>",
+  "countryCode": "GLOBAL"
+}'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+<CodeGroup>
+
+```json 200 Running (neko)
+{
+  "ok": true,
+  "runtime": {
+    "runtimeKind": "neko",
+    "status": "running",
+    "sessionId": "<session-id>",
+    "expiresAt": "2026-09-07T09:00:00.000Z",
+    "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
+  }
+}
+```
+
+```json 400 Proxy Required
+{
+  "error": "API key starts require an explicit proxy in every request",
+  "code": "PROXY_REQUIRED"
+}
+```
+
+```json 409 Concurrency Limit
+{
+  "error": "Cloud browser running limit reached",
+  "code": "CLOUD_BROWSER_CONCURRENCY_LIMIT"
+}
+```
+
+```json 503 No Capacity
+{
+  "error": "Cloud browser cluster has no available capacity",
+  "code": "CLUSTER_NO_CAPACITY",
+  "nextAvailableAt": null,
+  "retryAfterMs": null
+}
+```
+
+</CodeGroup>

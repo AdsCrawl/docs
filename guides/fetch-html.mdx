@@ -1,0 +1,161 @@
+---
+title: "Fetch Rendered HTML, Markdown, and JSON from Any Page"
+sidebarTitle: "Fetch HTML"
+description: "Use POST /html to retrieve fully rendered page content as raw HTML, clean Markdown, or structured JSON — no browser management required."
+---
+
+Use `POST /html` to fetch the fully rendered DOM of any page without spinning up or maintaining a browser yourself. AdsCrawl runs a real Chromium instance behind residential proxies, waits for the page to finish loading, and returns the content in whichever format your workflow needs.
+
+## Choose a content mode
+
+The `contentMode` field controls what you get back:
+
+| Mode | Response type | Best for |
+|---|---|---|
+| `html` *(default)* | `text/html` | Full rendered DOM, scraping, link extraction |
+| `markdown` | `text/markdown` | LLM pipelines, readable article text |
+| `json` | `application/json` | Structured article data with `title`, `byline`, `excerpt`, and `content` fields |
+
+`markdown` and `json` modes both use the [Mozilla Readability](https://github.com/mozilla/readability) algorithm. If the page has no recognisable article content, the API returns `422 READABILITY_CONTENT_NOT_FOUND`.
+
+## Send your first request
+
+<Steps>
+  <Step title="Choose your contentMode">
+    Decide whether you need the full page DOM (`html`), clean readable text (`markdown`), or a structured article object (`json`). For most LLM and summarisation tasks, `markdown` is the right starting point.
+  </Step>
+  <Step title="Set waitUntil">
+    Use `domcontentloaded` for speed — it returns as soon as HTML is parsed without waiting for images and stylesheets to load. Switch to `load` when you need styles to be applied, or `networkidle` when the page makes follow-up XHR requests to fill in content.
+  </Step>
+  <Step title="Optionally scope with selector">
+    Set `selector` to a CSS selector to wait for that element and return only its HTML (in `html` mode) or run Readability against it (in `markdown`/`json` mode). A selector that doesn't match returns `422`.
+  </Step>
+  <Step title="Send the request">
+    Include your API key in the `x-api-key` header and POST a JSON body to `https://api.adscrawl.net/html`.
+  </Step>
+</Steps>
+
+<CodeGroup>
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/html" \
+  -H "content-type: application/json" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -d '{
+    "url": "https://example.com/article",
+    "contentMode": "markdown",
+    "waitUntil": "domcontentloaded"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.adscrawl.net/html', {
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    'x-api-key': process.env.ADSCRAWL_API_KEY,
+  },
+  body: JSON.stringify({
+    url: 'https://example.com/article',
+    contentMode: 'markdown',
+    waitUntil: 'domcontentloaded',
+  }),
+});
+const text = await response.text();
+```
+
+```python Python
+import os, requests
+
+resp = requests.post(
+    'https://api.adscrawl.net/html',
+    headers={'x-api-key': os.environ['ADSCRAWL_API_KEY']},
+    json={
+        'url': 'https://example.com/article',
+        'contentMode': 'markdown',
+        'waitUntil': 'domcontentloaded',
+    }
+)
+print(resp.text)
+```
+</CodeGroup>
+
+## JSON response (contentMode=json)
+
+When you use `contentMode: "json"`, the response body is a structured Readability article object:
+
+```json
+{
+  "title": "Example Article",
+  "byline": "Author Name",
+  "excerpt": "A concise article summary.",
+  "siteName": "Example",
+  "lang": "en",
+  "dir": null,
+  "content": "<div><p>Readable body...</p></div>",
+  "textContent": "Readable body...",
+  "length": 2487,
+  "publishedTime": null
+}
+```
+
+| Field | Description |
+|---|---|
+| `title` | Article headline extracted by Readability |
+| `byline` | Author or publication credit |
+| `excerpt` | Short summary, often from a meta description |
+| `siteName` | Publisher name |
+| `lang` | Detected language code |
+| `dir` | Text direction (`"ltr"`, `"rtl"`, or `null`) |
+| `content` | Cleaned HTML body |
+| `textContent` | Plain-text body, whitespace-normalised |
+| `length` | Character count of `textContent` |
+| `publishedTime` | Publication timestamp if found, otherwise `null` |
+
+## Tips and common options
+
+<Tip>
+  Set `countryCode` to a two-letter region code (e.g. `"US"`, `"GB"`) or `"GLOBAL"` to route your request through a residential proxy in that region. This lets you bypass geo-restrictions and retrieve the localised version of a page.
+</Tip>
+
+<Tip>
+  Pass a `cookies` array to fetch pages that require an authenticated session. Each cookie needs at minimum `name`, `value`, and `domain`.
+</Tip>
+
+<Note>
+  If you request `contentMode: "markdown"` or `contentMode: "json"` on a page that contains no recognisable article body — such as a login screen or a data-heavy dashboard — the API returns `422 READABILITY_CONTENT_NOT_FOUND`. Switch to `contentMode: "html"` to retrieve the raw DOM for those pages.
+</Note>
+
+## Full request body reference
+
+<Accordion title="All request fields">
+  <ParamField body="url" type="string" required>
+    Target page URL. Only ports 80 and 443 are supported.
+  </ParamField>
+  <ParamField body="contentMode" type='"html" | "markdown" | "json"'>
+    Output format. Defaults to `"html"`. `"markdown"` and `"json"` apply Readability to extract the article body.
+  </ParamField>
+  <ParamField body="selector" type="string">
+    CSS selector. Waits for the first matching element; `html` mode returns only that element's HTML. `markdown`/`json` modes run Readability against it. Missing selectors return `422`.
+  </ParamField>
+  <ParamField body="waitUntil" type='"domcontentloaded" | "load" | "networkidle"'>
+    Navigation wait condition. Defaults to `"load"`. Use `"domcontentloaded"` for faster HTML extraction.
+  </ParamField>
+  <ParamField body="countryCode" type="string">
+    Managed proxy region. `"GLOBAL"` picks a dynamic exit node from 15 popular regions. A two-letter code (e.g. `"US"`) prefers a trusted proxy with dynamic fallback. Cannot be combined with a custom `proxy`.
+  </ParamField>
+  <ParamField body="cookies" type="cookies[]">
+    Cookie list injected into the browser context before navigation.
+  </ParamField>
+  <ParamField body="locale" type="string">
+    Browser locale, such as `"en-US"` or `"zh-CN"`.
+  </ParamField>
+  <ParamField body="timezoneId" type="string">
+    IANA timezone ID, such as `"Asia/Shanghai"`.
+  </ParamField>
+  <ParamField body="viewport" type="object">
+    Viewport size, e.g. `{ "width": 1280, "height": 720 }`.
+  </ParamField>
+  <ParamField body="timeoutMs" type="number">
+    Navigation timeout in milliseconds. Must be positive and no greater than 3,600,000.
+  </ParamField>
+</Accordion>

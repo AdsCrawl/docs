@@ -1,0 +1,121 @@
+---
+title: "API Keys, Session JWTs, and CDP Tokens in AdsCrawl"
+sidebarTitle: "Authentication"
+description: "Learn how to use API keys, session JWTs, and CDP data tokens to authenticate every AdsCrawl request securely from your backend server."
+---
+
+Every request to the AdsCrawl API must carry a credential. For nearly all workflows, that credential is your API key — a long-lived secret you send in the `x-api-key` request header. Two narrower token types exist for specific scenarios: a session JWT for cloud browser lifecycle operations initiated from a dashboard session, and a data token embedded in CDP session URLs for WebSocket access. Understanding which credential goes where prevents authentication errors and keeps your key secure.
+
+## Getting your API key
+
+Open the [AdsCrawl dashboard](https://app.adscrawl.net/dashboard/) after signing in, and copy your API key from the keys section. Store it in an environment variable or a secrets manager — never hard-code it in your application source.
+
+```bash
+export ADSCRAWL_API_KEY="your-api-key"
+```
+
+## Sending your API key
+
+Pass your API key in the `x-api-key` header on every request. The header name is lowercase; the value is the full key string.
+
+<CodeGroup>
+  ```bash cURL
+  curl --fail-with-body -sS -X POST "https://api.adscrawl.net/html" \
+    -H "content-type: application/json" \
+    -H "x-api-key: $ADSCRAWL_API_KEY" \
+    -d '{"url": "https://example.com", "contentMode": "markdown"}'
+  ```
+
+  ```javascript JavaScript (fetch)
+  const response = await fetch("https://api.adscrawl.net/html", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": process.env.ADSCRAWL_API_KEY,
+    },
+    body: JSON.stringify({
+      url: "https://example.com",
+      contentMode: "markdown",
+    }),
+  });
+  ```
+
+  ```python Python
+  import os
+  import requests
+
+  response = requests.post(
+      "https://api.adscrawl.net/html",
+      headers={
+          "content-type": "application/json",
+          "x-api-key": os.environ["ADSCRAWL_API_KEY"],
+      },
+      json={"url": "https://example.com", "contentMode": "markdown"},
+  )
+  ```
+</CodeGroup>
+
+<Warning>
+  Never expose your API key in client-side JavaScript, browser extensions, mobile apps, public repositories, or request URLs. Your key authorizes charges against your account. If a key is compromised, rotate it immediately from the dashboard.
+</Warning>
+
+## Session JWT (cloud browser lifecycle)
+
+Cloud browser list, create, launch, start, and stop endpoints also accept a session JWT in the `Authorization: Bearer <SESSION_JWT>` header. This is a login session token — it represents a signed-in dashboard user, not an API key.
+
+Session authentication is narrower than API key authentication in one important way: **it requires `apiKeyId`** on start requests. You must supply the UUID of an active, unexpired API key that belongs to the same account. API key authentication selects the current key automatically.
+
+```bash
+curl --fail-with-body -sS -X POST \
+  "https://api.adscrawl.net/cloud-browsers/<CLOUD_BROWSER_ID>/start" \
+  -H "Authorization: Bearer <SESSION_JWT>" \
+  -H "content-type: application/json" \
+  -d '{"apiKeyId": "<API_KEY_ID>", "countryCode": "GLOBAL"}'
+```
+
+<Info>
+  Session cookies are also accepted in place of the Bearer token for dashboard-initiated requests. Use API key authentication for all server-side and automated workflows.
+</Info>
+
+## Data tokens (CDP WebSocket access)
+
+When you create a CDP session, the `201` response includes a `cdpBaseUrl` that already contains an embedded data token:
+
+```json
+{
+  "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+  "expiresAt": "2026-04-21T10:30:00.000Z",
+  "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-...?token=<data-token>"
+}
+```
+
+Pass `cdpBaseUrl` directly to Playwright's `connectOverCDP`. The data token in this URL authorizes both the CDP discovery endpoint (`GET /cdp/sessions/:id/json/version`) and the CDP WebSocket (`WSS /cdp/sessions/:id/devtools/browser/:browserId`).
+
+<Warning>
+  Do **not** replace the data token in `cdpBaseUrl` with your API key. The data token is a separate, session-scoped credential. Substituting your API key will result in a `401` error.
+</Warning>
+
+For live browser control, use `POST /cdp/live-token` (authenticated with your API key) to obtain a short-lived `controlToken`. This single-use token expires after 30 seconds and authorizes one WebSocket connection to `WSS /cdp/live/:sessionId`.
+
+## Error reference
+
+| HTTP Status | Meaning | What to do |
+|---|---|---|
+| `401` | Missing or invalid `x-api-key` | Verify the header name is `x-api-key` (lowercase) and the value is your full, untruncated key. |
+| `402` | Insufficient credits | Check your credit balance in the dashboard and upgrade your plan or wait for the next renewal. |
+| `403` | Session does not belong to the current key | The `sessionId` you referenced was created by a different API key. Use the key that created the session. |
+
+## API key limits by plan
+
+The number of API keys you can create depends on your plan. Each key is independent and can be scoped to different servers or services.
+
+| Plan | Price | API Keys |
+|---|---|---|
+| Free | $0 | 1 |
+| Hobby | $9 / month | 3 |
+| Starter | $49 / month | 10 |
+| Pro | $199 / month | 30 |
+
+<Note>
+  You can view and manage your API keys, credit balance, and plan from the [dashboard](https://app.adscrawl.net/dashboard/). To create a new account, visit [app.adscrawl.net/register](https://app.adscrawl.net/register/).
+</Note>

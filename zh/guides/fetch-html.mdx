@@ -1,0 +1,172 @@
+---
+title: "从任意页面获取渲染后的 HTML、Markdown 和 JSON"
+sidebarTitle: "Fetch HTML"
+description: "使用 POST /html 获取完整渲染后的页面内容，支持原始 HTML、纯净 Markdown 或结构化 JSON 格式，无需自行管理浏览器。"
+---
+
+使用 `POST /html` 获取任意页面的完整渲染 DOM，而无需自行启动或维护浏览器。AdsCrawl 在住宅代理后运行真正的 Chromium 实例，等待页面加载完成，然后以你工作流所需的格式返回内容。
+
+## 选择内容模式
+
+`contentMode` 字段控制返回的内容类型：
+
+| 模式 | 响应类型 | 适用场景 |
+| --- | --- | --- |
+| `html` _(默认)_ | `text/html` | 完整渲染 DOM、网页抓取、链接提取 |
+| `markdown` | `text/markdown` | LLM 流水线、可读文章文本 |
+| `json` | `application/json` | 结构化文章数据，包含 `title`、`byline`、`excerpt` 和 `content` 字段 |
+
+`markdown` 和 `json` 模式均使用 [Mozilla Readability](https://github.com/mozilla/readability) 算法。如果页面没有可识别的文章内容，API 将返回 `422 READABILITY_CONTENT_NOT_FOUND`。
+
+## 发送你的第一个请求
+
+<Steps>
+  <Step title="选择你的 contentMode">
+    确定你需要完整页面 DOM (`html`)、纯净可读文本 (`markdown`) 还是结构化文章对象 (`json`)。对于大多数 LLM 和摘要任务，`markdown` 是合适的起点。
+  </Step>
+  <Step title="设置 waitUntil">
+    使用 `domcontentloaded` 以获得更快的速度，它在 HTML 解析完成后立即返回，无需等待图片和样式表加载。当你需要样式已应用时，切换到 `load`，当页面通过 XHR 请求填充内容时，切换到 `networkidle`。
+  </Step>
+  <Step title="通过 selector 限定范围（可选）">
+    将 `selector` 设置为 CSS 选择器，以等待该元素出现并仅返回其 HTML（在 `html` 模式下）或针对其运行 Readability（在 `markdown`/`json` 模式下）。不匹配的选择器将返回 `422`。
+  </Step>
+  <Step title="发送请求">
+    在 `x-api-key` 请求头中包含你的 API 密钥，并向 `https://api.adscrawl.net/html` 发送 POST JSON 请求。
+  </Step>
+</Steps>
+
+<CodeGroup>
+
+```bash cURL
+curl -sS -X POST "https://api.adscrawl.net/html" \
+  -H "content-type: application/json" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -d '{
+    "url": "https://example.com/article",
+    "contentMode": "markdown",
+    "waitUntil": "domcontentloaded"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.adscrawl.net/html', {
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    'x-api-key': process.env.ADSCRAWL_API_KEY,
+  },
+  body: JSON.stringify({
+    url: 'https://example.com/article',
+    contentMode: 'markdown',
+    waitUntil: 'domcontentloaded',
+  }),
+});
+const text = await response.text();
+```
+
+```python Python
+import os, requests
+
+resp = requests.post(
+    'https://api.adscrawl.net/html',
+    headers={'x-api-key': os.environ['ADSCRAWL_API_KEY']},
+    json={
+        'url': 'https://example.com/article',
+        'contentMode': 'markdown',
+        'waitUntil': 'domcontentloaded',
+    }
+)
+print(resp.text)
+```
+
+</CodeGroup>
+
+## JSON 响应 (contentMode=json)
+
+当你使用 `contentMode: "json"` 时，响应体是一个结构化的 Readability 文章对象：
+
+```json
+{
+  "title": "Example Article",
+  "byline": "Author Name",
+  "excerpt": "A concise article summary.",
+  "siteName": "Example",
+  "lang": "en",
+  "dir": null,
+  "content": "<div><p>Readable body...</p></div>",
+  "textContent": "Readable body...",
+  "length": 2487,
+  "publishedTime": null
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `title` | Readability 提取的文章标题 |
+| `byline` | 作者或出版物署名 |
+| `excerpt` | 简短摘要，通常来自 meta description |
+| `siteName` | 发布者名称 |
+| `lang` | 检测到的语言代码 |
+| `dir` | 文本方向 (`"ltr"`、`"rtl"` 或 `null`) |
+| `content` | 清理后的 HTML 正文 |
+| `textContent` | 规范化空白后的纯文本正文 |
+| `length` | `textContent` 的字符数 |
+| `publishedTime` | 找到的文章发布时间，否则为 `null` |
+
+## 提示和常用选项
+
+<Tip>
+  将 `countryCode` 设置为两位字母区域代码（例如 `"US"`、`"GB"`）或 `"GLOBAL"`，以通过该区域内的住宅代理路由你的请求。这使你能够绕过地域限制并获取页面的本地化版本。
+</Tip>
+
+<Tip>
+  传递 `cookies` 数组以获取需要已认证会话的页面。每个 cookie 至少需要 `name`、`value` 和 `domain`。
+</Tip>
+
+<Note>
+  如果你在不包含可识别文章正文的页面上请求 `contentMode: "markdown"` 或 `contentMode: "json"`（例如登录页面或数据密集型仪表盘），API 将返回 `422 READABILITY_CONTENT_NOT_FOUND`。对于这些页面，切换到 `contentMode: "html"` 以获取原始 DOM。
+</Note>
+
+## 完整请求体参考
+
+<Accordion title="所有请求字段">
+  <ParamField body="url" type="string" required>
+    目标页面 URL。仅支持 80 和 443 端口。
+  </ParamField>
+
+  <ParamField body="contentMode" type='"html" | "markdown" | "json"'>
+    输出格式。默认为 `"html"`。`"markdown"` 和 `"json"` 应用 Readability 提取文章正文。
+  </ParamField>
+
+  <ParamField body="selector" type="string">
+    CSS 选择器。等待第一个匹配的元素出现：`html` 模式仅返回该元素的 HTML。`markdown`/`json` 模式针对其运行 Readability。不存在的选择器返回 `422`。
+  </ParamField>
+
+  <ParamField body="waitUntil" type='"domcontentloaded" | "load" | "networkidle"'>
+    导航等待条件。默认为 `"load"`。使用 `"domcontentloaded"` 以更快提取 HTML。
+  </ParamField>
+
+  <ParamField body="countryCode" type="string">
+    托管代理区域。`"GLOBAL"` 从 15 个热门区域动态选择出口节点。两位字母代码（例如 `"US"`）优先使用可信代理并动态回退。不能与自定义 `proxy` 组合使用。
+  </ParamField>
+
+  <ParamField body="cookies" type="cookies[]">
+    在导航前注入浏览器上下文的 cookie 列表。
+  </ParamField>
+
+  <ParamField body="locale" type="string">
+    浏览器区域设置，例如 `"en-US"` 或 `"zh-CN"`。
+  </ParamField>
+
+  <ParamField body="timezoneId" type="string">
+    IANA 时区 ID，例如 `"Asia/Shanghai"`。
+  </ParamField>
+
+  <ParamField body="viewport" type="object">
+    视口大小，例如 `{ "width": 1280, "height": 720 }`。
+  </ParamField>
+
+  <ParamField body="timeoutMs" type="number">
+    导航超时时间（毫秒）。必须为正数且不超过 3,600,000。
+  </ParamField>
+</Accordion>

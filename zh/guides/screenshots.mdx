@@ -1,0 +1,133 @@
+---
+title: "使用 AdsCrawl 捕获整页和元素截图"
+sidebarTitle: "Screenshots"
+description: "使用 POST /screenshot 从任意 URL 捕获整页或单个元素的 PNG 图像，支持代理路由、自定义视口和区域设置。"
+---
+
+使用 `POST /screenshot` 在不管理浏览器的情况下捕获任意网页的 PNG 图像。AdsCrawl 启动真正的 Chromium 实例，通过住宅代理路由请求，等待页面加载，然后将图像直接以二进制 PNG 响应流回传。截图适用于视觉监控、AI 驱动工作流、研究存档和自动报告。
+
+## 整页截图
+
+设置 `fullPage: true` 以捕获指定视口宽度下整个可滚动页面。与 cURL 一起使用 `--output` 将二进制响应直接写入文件。
+
+```bash
+curl -sS -X POST "https://api.adscrawl.net/screenshot" \
+  -H "content-type: application/json" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "viewport": { "width": 1440, "height": 900 },
+    "fullPage": true,
+    "waitUntil": "load"
+  }' \
+  --output page.png
+```
+
+## 元素截图
+
+提供 `selector` 以仅捕获第一个匹配的元素。视口仍然控制页面布局，仅裁剪渲染页面中匹配的元素。
+
+```bash
+curl -sS -X POST "https://api.adscrawl.net/screenshot" \
+  -H "content-type: application/json" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -d '{
+    "url": "https://example.com",
+    "selector": ".hero-banner",
+    "fullPage": false,
+    "waitUntil": "load"
+  }' \
+  --output banner.png
+```
+
+<Note>
+  如果你提供的 `selector` 在页面上没有匹配任何元素，API 将返回 `422 CONTENT_SELECTOR_NOT_FOUND`。针对实时渲染的 DOM 检查你的选择器：某些元素仅在 JavaScript 执行完成后才会出现。
+</Note>
+
+## waitUntil 选项
+
+`waitUntil` 字段控制 AdsCrawl 认为页面何时可以捕获：
+
+| 值 | 触发时机 | 适用场景 |
+| --- | --- | --- |
+| `load` _(默认)_ | 在 `window.load` 之后，包括图片和样式表 | 你需要完整样式化的页面 |
+| `domcontentloaded` | 在 HTML 解析后，加载次要资源之前 | 你追求速度且不需要图片 |
+| `networkidle` | 在 500 毫秒无网络活动之后 | 页面通过异步 API 调用填充内容 |
+
+<Warning>
+  在具有持久连接、分析信标或懒加载无限滚动内容的页面上，`networkidle` 可能会超时。对于大多数截图用例，优先使用 `load`。
+</Warning>
+
+## 提示
+
+<Tip>
+  使用 `countryCode` 捕获地域特定的页面变体。设置 `"countryCode": "US"` 以查看网站的美国版本，或设置 `"countryCode": "GLOBAL"` 以在 15 个热门区域中随机选择住宅出口节点。
+</Tip>
+
+<Tip>
+  同时设置 `locale` 和 `timezoneId` 以准确捕获本地化页面。例如，`"locale": "zh-CN"` 和 `"timezoneId": "Asia/Shanghai"` 以身处中国的用户所见的方式渲染页面。
+</Tip>
+
+## 使用场景
+
+<CardGroup cols={3}>
+  <Card title="视觉监控" icon="eye">
+    安排定期截图以检测竞争对手网站的布局回归或内容变化。
+  </Card>
+
+  <Card title="AI 工作流" icon="robot">
+    将截图输入多模态 LLM 以进行视觉页面理解、UI 审核或内容分类。
+  </Card>
+
+  <Card title="研究与存档" icon="archive">
+    为合规、新闻或市场研究捕获带有时间戳的页面视觉记录。
+  </Card>
+</CardGroup>
+
+## 完整请求体参考
+
+<Accordion title="所有请求字段">
+  <ParamField body="url" type="string" required>
+    目标页面 URL。仅支持 80 和 443 端口。
+  </ParamField>
+
+  <ParamField body="viewport" type="object">
+    视口尺寸，例如 `{ "width": 1440, "height": 900 }`。控制页面布局宽度；当 `fullPage` 为 true 时，捕获的高度延伸至整页。
+  </ParamField>
+
+  <ParamField body="fullPage" type="boolean">
+    捕获整个可滚动页面。默认为 `true`。当设置了 `selector` 时，仅捕获匹配的元素。
+  </ParamField>
+
+  <ParamField body="selector" type="string">
+    要捕获的单个元素的 CSS 选择器。如果没有匹配的元素，返回 `422 CONTENT_SELECTOR_NOT_FOUND`。
+  </ParamField>
+
+  <ParamField body="waitUntil" type='"load" | "domcontentloaded" | "networkidle"'>
+    导航等待条件。默认为 `"load"`。
+  </ParamField>
+
+  <ParamField body="countryCode" type="string">
+    托管代理区域。`"GLOBAL"` 从 15 个区域动态选择出口节点。两位字母代码（例如 `"US"`）优先使用可信代理。不能与 `proxy` 组合使用。
+  </ParamField>
+
+  <ParamField body="locale" type="string">
+    浏览器区域设置，例如 `"en-US"` 或 `"zh-CN"`。
+  </ParamField>
+
+  <ParamField body="timezoneId" type="string">
+    IANA 时区 ID，例如 `"Asia/Shanghai"` 或 `"America/New_York"`。
+  </ParamField>
+
+  <ParamField body="cookies" type="cookies[]">
+    在导航前注入的 cookie 列表，适用于捕获已认证页面。
+  </ParamField>
+
+  <ParamField body="userAgentMode" type='"random" | "custom"'>
+    设置为 `"random"` 让 AdsCrawl 选择真实的 User-Agent。当未提供 User-Agent 时，默认 `"random"`。
+  </ParamField>
+
+  <ParamField body="timeoutMs" type="number">
+    导航超时时间（毫秒）。必须为正数且不超过 3,600,000。
+  </ParamField>
+</Accordion>

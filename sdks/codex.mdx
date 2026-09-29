@@ -1,0 +1,85 @@
+---
+title: "AdsCrawl Codex Plugin"
+description: "Use the AdsCrawl Codex plugin to render pages, and capture full-page screenshots from OpenAI Codex. Requires Python 3.9+ and an API key."
+sidebarTitle: "Codex Plugin"
+---
+
+The AdsCrawl Codex plugin adds browser-rendered page reading and screenshots to [OpenAI Codex](https://openai.com/codex/). It bundles an `adscrawl-browser` skill and a Python 3.9+ command that uses only the standard library. It calls the AdsCrawl API using your `ADSCRAWL_API_KEY` and does not bundle credentials.
+
+## Features
+
+- Render a URL as Markdown, HTML, or structured article JSON.
+- Capture a full-page or viewport PNG screenshot.
+- Select a managed country route and navigation wait strategy.
+- Use AdsCrawl CDP sessions for interactive browser work through your project's browser automation library.
+
+## Requirements
+
+- Python 3.9 or later.
+- An [AdsCrawl account](https://app.adscrawl.net/register/) with an API key.
+
+## Install
+
+Install the plugin from the public GitHub repository:
+
+```bash
+codex plugin marketplace add AdsCrawl/adscrawl-codex
+codex plugin add adscrawl@adscrawl
+```
+
+Start a new Codex task after installation so the bundled skill is loaded. To add a local checkout while developing:
+
+```bash
+codex plugin marketplace add /path/to/adscrawl-codex
+codex plugin add adscrawl@adscrawl
+```
+
+<Card title="adscrawl-codex on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-codex">
+  View source and releases.
+</Card>
+
+## Authenticate
+
+After installing the plugin, ask Codex to connect your AdsCrawl account, or run the auth command directly:
+
+```bash
+python3 plugins/adscrawl/scripts/adscrawl.py auth
+```
+
+The command asks for your account email and a project name, then prints a link for you to approve. It never asks for your password or prints the resulting API key.
+
+Alternatively, set `ADSCRAWL_API_KEY` in your environment. The plugin will reuse an existing environment variable.
+
+The auth flow saves your key privately at `~/.config/adscrawl/codex.env` with `0600` permissions.
+
+## Direct commands
+
+The skill invokes `plugins/adscrawl/scripts/adscrawl.py`. You can also run it directly:
+
+### Render a page
+
+```bash
+python3 plugins/adscrawl/scripts/adscrawl.py render \
+  --url 'https://www.adscrawl.net/' --format markdown --output page.md
+```
+
+<Note>
+  `--format` accepts `markdown`, `html`, or `json` (structured article).
+</Note>
+
+### Capture a screenshot
+
+```bash
+python3 plugins/adscrawl/scripts/adscrawl.py screenshot \
+  --url 'https://www.adscrawl.net/' --output page.png
+```
+
+Run `python3 plugins/adscrawl/scripts/adscrawl.py <command> --help` for the available options. API failures are not retried automatically.
+
+## CDP sessions
+
+For interactive browser work (clicking, filling forms, multi-step flows), use AdsCrawl CDP sessions through your project's browser automation library. See [Remote CDP browsers](/concepts/remote-cdp) and [Playwright automation](/guides/playwright-automation).
+
+<Note>
+  Plugin requests can consume AdsCrawl credits. See [Credits and limits](/credits-and-limits).
+</Note>

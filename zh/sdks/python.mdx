@@ -1,0 +1,217 @@
+---
+title: "AdsCrawl Python SDK"
+description: "安装并使用 AdsCrawl Python SDK 来获取渲染内容、截图、结构化数据和远程 CDP 浏览器会话。支持 Python 3.9+，零运行时依赖。"
+sidebarTitle: "Python"
+---
+
+AdsCrawl Python SDK 兼容 Python 3.9 及更高版本。它同时提供同步和异步客户端，仅使用 Python 标准库进行 HTTP 通信，零运行时依赖。
+
+<Note>
+  请将 API 密钥保存在服务端代码中，切勿在客户端应用中暴露。
+</Note>
+
+## 安装
+
+```bash
+pip install adscrawl
+```
+
+当你需要通过 Playwright 连接远程浏览器时，请安装额外依赖：
+
+```bash
+pip install "adscrawl[playwright]"
+playwright install chromium
+```
+
+<Card title="adscrawl-python on GitHub" icon="github" href="https://github.com/AdsCrawl/adscrawl-python">
+  查看源代码、可运行示例和发布版本。
+</Card>
+
+## 认证并发起首个请求
+
+在控制台[创建 API 密钥](https://app.adscrawl.net/register/?utm_source=pypi&utm_medium=sdk&utm_campaign=adscrawl-python)，并在服务器环境中设置 `ADSCRAWL_API_KEY`。你也可以直接通过 `AdsCrawl(api_key="...")` 传入密钥。
+
+```python
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+markdown = client.markdown({
+    "url": "https://www.adscrawl.net",
+    "waitUntil": "domcontentloaded",
+})
+print(markdown)
+```
+
+## 渲染内容与截图
+
+```python
+from pathlib import Path
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+html = client.html({"url": "https://www.adscrawl.net"})
+article = client.article({"url": "https://www.adscrawl.net"})
+print(article["title"], article["textContent"])
+
+png = client.screenshot({
+    "url": "https://www.adscrawl.net",
+    "viewport": {"width": 1440, "height": 900},
+    "fullPage": True,
+    "waitUntil": "load",
+})
+Path("page.png").write_bytes(png)
+```
+
+`html()` 默认返回 HTML。`markdown()` 返回 Markdown，`article()` 返回字典，`screenshot()` 返回 PNG 字节。你可以使用自定义 `proxy` 或托管 `countryCode`，两者不能同时使用。
+
+## 代理与指纹
+
+```python
+import os
+from pathlib import Path
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+server = os.getenv("ADSCRAWL_PROXY_SERVER")
+username = os.getenv("ADSCRAWL_PROXY_USERNAME")
+password = os.getenv("ADSCRAWL_PROXY_PASSWORD")
+if bool(username) != bool(password):
+    raise RuntimeError("Set both proxy username and password, or neither.")
+if not server and (username or password):
+    raise RuntimeError("Set ADSCRAWL_PROXY_SERVER with proxy credentials.")
+
+routing = {"countryCode": "GLOBAL"}
+if server:
+    proxy = {"server": server}
+    if username and password:
+        proxy.update({"username": username, "password": password})
+    routing = {"proxy": proxy}
+
+png = client.screenshot({
+    "url": "https://www.browserscan.net/",
+    **routing,
+    "viewport": {"width": 1440, "height": 900},
+    "fullPage": True,
+    "waitUntil": "networkidle",
+    "timeoutMs": 60_000,
+    "userAgentMode": "random",
+    "userAgentOs": "windows",
+    "fingerprint": {
+        "webRtc": "forward", "webGl": "random", "webGpu": "random",
+        "webGlImage": "random", "canvas": "random",
+        "audioContext": "random", "clientRects": "random",
+        "speechVoices": "random", "fonts": "random",
+        "hardware": "random", "doNotTrack": "random",
+    },
+}, timeout_ms=75_000)
+Path("browserscan.png").write_bytes(png)
+```
+
+AdsCrawl 使用真实浏览器，支持可配置的路由和浏览器指纹。随机化设置会生成在操作系统、GPU、硬件、字体和相关信号之间保持一致的个人资料。该浏览器工作流已通过验证，可以访问并渲染 BrowserScan、Pixelscan 和 IPhey，并返回截图。
+
+## 结构化提取
+
+```python
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+print(client.spa.templates()["templates"])
+
+result = client.spa.extract({
+    "url": "https://www.adscrawl.net",
+    "fields": {
+        "title": {"source": "dom", "selector": "h1", "value": "text", "required": True},
+    },
+})
+print(result["data"]["title"], result["missingFields"])
+
+inspection = client.spa.inspect({"url": "https://www.adscrawl.net"})
+print(inspection["candidates"])
+```
+
+泛型参数用于描述预期输出，但不会在运行时验证自定义数据。请务必检查 `missingFields`。
+
+## 远程 CDP 浏览器
+
+```python
+from adscrawl import AdsCrawl
+from playwright.sync_api import sync_playwright
+
+client = AdsCrawl()
+session = client.cdp.create({
+    "idleTimeoutMs": 600_000,
+    "maxSessionMs": 3_600_000,
+    "browserSettings": {"viewport": {"width": 1440, "height": 900}},
+})
+try:
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.connect_over_cdp(session["cdpBaseUrl"])
+        context = browser.contexts[0]
+        page = context.pages[0] if context.pages else context.new_page()
+        page.goto("https://www.adscrawl.net")
+        print(page.title())
+        browser.close()
+finally:
+    client.cdp.close(session["sessionId"])
+```
+
+`cdp.list()` 返回 `{"ok": True, "data": [...]}`。`cdp.get_version(session)` 用于发现 WebSocket 端点，不会转发 API 密钥。连接 URL 包含敏感信息，请勿记录日志。
+
+## 持久化云浏览器
+
+```python
+import os
+from adscrawl import AdsCrawl
+
+client = AdsCrawl()
+server = os.environ["ADSCRAWL_PROXY_SERVER"]
+proxy = {"server": server}
+launched = client.cloud_browsers.launch({
+    "proxy": proxy,
+    "tabs": ["https://www.adscrawl.net"],
+})
+browser_id = launched["id"]
+try:
+    profile = client.cloud_browsers.get(browser_id)
+    print(profile["id"], profile["runtime"]["status"])
+finally:
+    client.cloud_browsers.stop(browser_id)
+```
+
+通过 API 密钥启动和创建都需要在每次请求时提供顶级自定义 `proxy`。`stopping` 响应不能确认关闭，请轮询 `get()` 直到状态变为 `stopped`。启动失败时，清理 ID 可能作为 `AdsCrawlAPIError.id` 暴露。
+
+## 异步客户端
+
+```python
+import asyncio
+from adscrawl import AsyncAdsCrawl
+
+async def main():
+    async with AsyncAdsCrawl() as client:
+        markdown = await client.markdown({"url": "https://www.adscrawl.net"})
+        print(markdown)
+
+asyncio.run(main())
+```
+
+异步 facade 在工作线程中运行零依赖的标准库 HTTP 传输。取消协程或超时并不能证明远程浏览器工作已停止。
+
+## 配置与错误处理
+
+```python
+from adscrawl import AdsCrawl, AdsCrawlAPIError, AdsCrawlTimeoutError
+
+client = AdsCrawl(base_url="https://api.adscrawl.net", timeout_ms=90_000)
+try:
+    text = client.markdown(
+        {"url": "https://www.adscrawl.net", "timeoutMs": 60_000},
+        timeout_ms=75_000,
+    )
+    print(text)
+except AdsCrawlAPIError as error:
+    print(error.status, error.code, error.trace_id)
+except AdsCrawlTimeoutError:
+    print("Inspect remote sessions before retrying.")
+```
+
+API 密钥默认为 `ADSCRAWL_API_KEY`。基础 URL 优先级依次为 `ADSCRAWL_BASE_URL`、`ADSCRAWL_API_URL`，最后为 `https://api.adscrawl.net`。错误类型包括 `AdsCrawlAPIError`、`AdsCrawlTimeoutError`、`AdsCrawlConnectionError` 和 `AdsCrawlResponseError`。API 响应体会对凭据进行脱敏处理。HTTP 截止时间包含响应体读取时间。请求不会自动重试。

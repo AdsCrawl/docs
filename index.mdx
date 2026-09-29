@@ -1,0 +1,59 @@
+---
+title: "AdsCrawl Docs: Browser Automation API Reference & Guides"
+description: "Everything you need to fetch rendered HTML, extract structured data, capture screenshots, and run full browser sessions through residential proxies."
+---
+
+Welcome to the AdsCrawl documentation. AdsCrawl is a browser automation API built for developers who need reliable, rendered web data without managing browser infrastructure. These docs cover every API endpoint, authentication pattern, and workflow — from your first `curl` request to running production Playwright sessions through residential proxies.
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Make your first API request in under five minutes.
+  </Card>
+
+  <Card title="Authentication" icon="key" href="/authentication">
+    Understand API keys, session tokens, and data tokens.
+  </Card>
+
+  <Card title="Fetch HTML" icon="code" href="/guides/fetch-html">
+    Render any page and return HTML, Markdown, or article JSON.
+  </Card>
+
+  <Card title="API Reference" icon="book" href="/api-reference/html">
+    Full request and response schemas for every endpoint.
+  </Card>
+
+  <Card title="Cloud Browsers" icon="cloud" href="/concepts/cloud-browsers">
+    Persistent profiles with live viewer and reusable state.
+  </Card>
+
+  <Card title="Pricing" icon="credit-card" href="/pricing">
+    Free, Hobby, Starter, and Pro plans — compare credits and limits.
+  </Card>
+</CardGroup>
+
+## Set up in three steps
+
+<Steps>
+  <Step title="Create a free account">
+    Sign up at [app.adscrawl.net/register](https://app.adscrawl.net/register/). The Free plan includes 500 credits and one API key — no credit card required.
+  </Step>
+  <Step title="Copy your API key">
+    Open the [dashboard](https://app.adscrawl.net/dashboard/), find your API key, and store it in an environment variable or secret manager. Never put your key in client-side code.
+  </Step>
+  <Step title="Make your first request">
+    Send your API key in the `x-api-key` header and POST a URL to `/html`. You'll receive rendered HTML, Markdown, or structured article JSON back in the response body.
+
+    ```bash
+    curl --fail-with-body -sS -X POST "https://api.adscrawl.net/html" \
+      -H "content-type: application/json" \
+      -H "x-api-key: $ADSCRAWL_API_KEY" \
+      -d '{
+        "url": "https://example.com/article",
+        "contentMode": "markdown",
+        "waitUntil": "domcontentloaded"
+      }'
+    ```
+  </Step>
+</Steps>
