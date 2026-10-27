@@ -68,7 +68,8 @@
                   "guides/extract-data",
                   "guides/screenshots",
                   "guides/playwright-automation",
-                  "guides/cloud-browser-sessions"
+                  "guides/cloud-browser-sessions",
+                  "guides/scraper-examples"
                 ]
               },
               {
@@ -166,7 +167,8 @@
                   "zh/guides/extract-data",
                   "zh/guides/screenshots",
                   "zh/guides/playwright-automation",
-                  "zh/guides/cloud-browser-sessions"
+                  "zh/guides/cloud-browser-sessions",
+                  "zh/guides/scraper-examples"
                 ]
               },
               {

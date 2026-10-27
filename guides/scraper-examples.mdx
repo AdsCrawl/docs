@@ -1,0 +1,232 @@
+---
+sidebarTitle: "Website scraper examples"
+title: "Python Website Scraper Examples"
+description: "Run and customize AdsCrawl's Python scraper examples for search, products, reviews, real estate, and other websites."
+---
+
+[AdsCrawl Scrapers](https://github.com/AdsCrawl/adscrawl-scrapers) is a collection of Python examples for 81 websites. Each site directory contains its parser, a runnable script, live tests, and historical sample output. Use the examples as a starting point for a specific website, or reuse the shared remote browser client for your own parser.
+
+<CardGroup cols={2}>
+  <Card title="Browse the source" icon="github" href="https://github.com/AdsCrawl/adscrawl-scrapers">
+    Find site modules, run scripts, and the complete scraper directory.
+  </Card>
+
+  <Card title="Python SDK" icon="python" href="/sdks/python">
+    Learn about authentication, API methods, and remote CDP sessions.
+  </Card>
+</CardGroup>
+
+## Install and configure
+
+You need Git, **Python 3.10 or later**, and an [AdsCrawl API key](https://app.adscrawl.net/dashboard/keys/). The scraper repository has a higher Python requirement than the standalone SDK.
+
+Run these commands from a terminal:
+
+```bash
+git clone https://github.com/AdsCrawl/adscrawl-scrapers.git
+cd adscrawl-scrapers
+python -m venv .venv
+```
+
+<Tabs>
+  <Tab title="macOS / Linux">
+    ```bash
+    source .venv/bin/activate
+    python -m pip install -e ".[dev]"
+    export ADSCRAWL_API_KEY="your_api_key"
+    ```
+  </Tab>
+  <Tab title="Windows PowerShell">
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install -e ".[dev]"
+    $env:ADSCRAWL_API_KEY = "your_api_key"
+    ```
+  </Tab>
+</Tabs>
+
+The editable install provides `adscrawl_scrapers`, the AdsCrawl SDK, Playwright, parsers, and development test dependencies. These examples connect to **remote Chromium browsers**; you do not need to run `playwright install chromium`.
+
+<Note>
+  Running a scraper or a site's live tests uses AdsCrawl credits. Review the input URLs, dates, and page limits in `run.py` before running it. Keep API keys in environment variables and out of source control.
+</Note>
+
+## Example: Bing search and related keywords
+
+From the repository root, run the included script:
+
+```bash
+cd bing-scraper
+python run.py
+```
+
+The script calls these functions from `bing.py`:
+
+| Function | Input | Output |
+| --- | --- | --- |
+| `scrape_search(query, max_pages)` | Search query and a positive integer page limit | A list of search result dictionaries |
+| `scrape_keywords(query)` | Search query | A list of related keyword strings |
+
+The included `run.py` searches for `web scraping emails` across up to three pages and writes `results/serps.json` and `results/keywords.json` inside `bing-scraper/`.
+
+To customize the query and start with one page, save this as `bing-scraper/custom.py` and run `python custom.py` from that directory:
+
+```python
+import json
+from pathlib import Path
+
+import bing
+from adscrawl_scrapers import run
+
+
+async def main():
+    query = "web scraping emails"
+    results = await bing.scrape_search(query=query, max_pages=1)
+    keywords = await bing.scrape_keywords(query=query)
+
+    output = Path(__file__).parent / "custom-results"
+    output.mkdir(exist_ok=True)
+    (output / "search.json").write_text(
+        json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (output / "keywords.json").write_text(
+        json.dumps(keywords, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"Saved {len(results)} results and {len(keywords)} keywords")
+
+
+if __name__ == "__main__":
+    run(main())
+```
+
+Search results include `position`, `title`, `url`, `origin`, `domain`, `description`, and `date`; some values can be absent or null. Bing may return no related keywords for a particular query. The module explicitly uses `countryCode="GB"`, so the default country environment variable does not override its route.
+
+## Example: ChatGPT answer as Markdown
+
+From the repository root:
+
+```bash
+cd chatgpt-scraper
+python run.py
+```
+
+The included script calls `chatgpt.scrape_conversation(prompt)` and saves the returned Markdown to `chatgpt-scraper/results/conversation.md`. Edit the prompt in `run.py` to change the question.
+
+For a small standalone example, save this as `chatgpt-scraper/custom.py` and run `python custom.py` from that directory:
+
+```python
+from pathlib import Path
+
+import chatgpt
+from adscrawl_scrapers import run
+
+
+async def main():
+    markdown = await chatgpt.scrape_conversation(
+        "What is the capital of France?"
+    )
+    Path(__file__).with_name("answer.md").write_text(
+        markdown, encoding="utf-8"
+    )
+
+
+if __name__ == "__main__":
+    run(main())
+```
+
+This example operates the ChatGPT website in a remote browser and converts page content to Markdown. The returned text can include surrounding page content. Availability depends on the website's current UI and access requirements.
+
+## Choose another website
+
+Open a site's directory, inspect its `run.py`, update the inputs, and run it from that directory. Function signatures and output schemas differ by site; the modules are local files such as `bing.py`, rather than submodules of the installed `adscrawl` SDK.
+
+| Use case | Example directories | Typical data |
+| --- | --- | --- |
+| Search and AI | [Bing](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/bing-scraper), [Google](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/google-scraper), [ChatGPT](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/chatgpt-scraper) | Search results, related keywords, page answers |
+| Products and commerce | [Shopify](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/shopify-scraper), [Idealo](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/idealo-scraper), [Amazon](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/amazon-scraper) | Catalogs, products, prices, reviews |
+| Social content | [Reddit](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/reddit-scraper), [Twitter / X](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/twitter-scraper), [Instagram](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/instagram-scraper) | Public posts, profiles, comments |
+| Real estate | [Zillow](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/zillow-scraper), [Rightmove](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/rightmove-scraper), [Imovelweb](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/imovelweb-scraper) | Search results and property details |
+| Apps, media, and events | [App Store](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/app-store-scraper), [IMDb](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/imdb-scraper), [Ticketmaster](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/ticketmaster-scraper) | App reviews, titles, charts, event discovery |
+| Travel and jobs | [Booking.com](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/bookingcom-scraper), [Google Flights](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/google-flights-scraper), [Indeed](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/indeed-scraper) | Hotels, flight searches, job listings |
+
+These links describe the examples present in the repository. Check the verification report for the status of the functions you plan to use. See the [complete list of 81 sites](https://github.com/AdsCrawl/adscrawl-scrapers#scrapers) and [machine-readable function catalog](https://github.com/AdsCrawl/adscrawl-scrapers/blob/main/docs/catalog.json).
+
+## Concurrency, region, and sessions
+
+| Setting | Default | Behavior |
+| --- | --- | --- |
+| `ADSCRAWL_API_KEY` | Required | API key used by the SDK |
+| `ADSCRAWL_CONCURRENCY` | `2` | Maximum simultaneous browser sessions per shared scraper client; use a positive integer within your account's capacity |
+| `ADSCRAWL_DEFAULT_COUNTRY` | `US` | Route used when a request has neither an explicit `countryCode` nor a custom `proxy` |
+
+For example, on macOS or Linux:
+
+```bash
+export ADSCRAWL_CONCURRENCY="1"
+export ADSCRAWL_DEFAULT_COUNTRY="US"
+```
+
+Set these variables before starting Python. In PowerShell, use `$env:ADSCRAWL_CONCURRENCY = "1"` and `$env:ADSCRAWL_DEFAULT_COUNTRY = "US"`.
+
+A site's explicit `countryCode` takes precedence. A custom `proxy` cannot be combined with `countryCode`. Multiple clients or processes can consume more sessions than one client's limit, so consider their combined usage.
+
+Most examples use `AsyncAdsCrawl.cdp.create`, connect Playwright over CDP, capture HTML and network responses, and release sessions with `cdp.close`. Named sessions reuse cookies, storage, and the browser connection within a site operation. Standalone scripts use `adscrawl_scrapers.run(...)` to close shared clients on exit. Air France uses the synchronous SDK; Google AI Mode uses `spa.extract`.
+
+## Build your own parser
+
+After installing the repository, save this as a Python script and run it with your API key configured:
+
+```python
+from adscrawl_scrapers import Request, ScraperClient, run
+
+
+async def main():
+    async with ScraperClient(concurrency=1) as client:
+        response = await client.fetch(
+            Request("https://example.com", countryCode="US")
+        )
+        print(response.selector.css("title::text").get())
+
+
+if __name__ == "__main__":
+    run(main())
+```
+
+Use `response.content` for the page body, `response.selector` for CSS/XPath extraction, and `response.network` for captured XHR/fetch responses. For a JSON response body, use `response.json()`. The asynchronous context manager closes the client's remote sessions on exit.
+
+## Verify results
+
+The repository's [dated live report](https://github.com/AdsCrawl/adscrawl-scrapers/blob/main/docs/live-verification/2026-10-27.md) records **suites across 81 sites on October 27, 2026**. For that audit, Bing returned 30 search results and 8 related keywords; the ChatGPT test returned an answer containing “Paris.” Those counts describe the recorded tests, not guaranteed output from the snippets above.
+
+The fully passed suites were App Store, Bing, ChatGPT, Fashionphile, Idealo, IMDb, Imovelweb, Reddit, Rightmove, Shopify, Similarweb, Ticketmaster, Twitter / X, Vestiaire Collective, and Zillow. Passing applies to the existing tested functions and inputs on that date. Some individual site READMEs still contain earlier verification notes; use the dated report for this audit's evidence and scope.
+
+Files already in `results/` are historical samples. Inspect newly generated output and required fields before using the data; an empty result does not establish that a scraper worked.
+
+From the repository root, run offline checks without an API key or credit usage:
+
+```bash
+python -m pytest tests -q
+python scripts/check_catalog.py
+```
+
+To test Bing against the live website with your configured API key:
+
+```bash
+python -m pytest bing-scraper/test.py -v
+```
+
+The last command uses credits. Default CI runs offline checks; a selected scraper's live workflow is triggered manually.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| `No module named adscrawl_scrapers` | Activate the virtual environment and run `python -m pip install -e ".[dev]"` from the repository root. |
+| `No module named bing` or another site module | Put your script in the matching site directory alongside its module, then run it there. |
+| Missing or invalid API key | Set `ADSCRAWL_API_KEY` in the same terminal before running the script. |
+| API capacity error or `SESSION_LIMIT` | Reduce concurrency, account for other clients, and inspect active CDP sessions. Close named sessions you no longer need. |
+| Target HTTP 403/429, login page, or empty output | Review the dated report, target URL, access requirements, and country settings; check the returned content before trusting parsed data. |
+| `TIMEOUT` or `SELECTOR_NOT_FOUND` | Check whether the site has changed its DOM or loading behavior. Review the site's selectors and bounded wait settings. |
+| `CLEANUP_FAILED` | Inspect active CDP sessions and close the sessions belonging to this run before retrying. |
+
+The shared transport does not automatically retry billable requests. Some site modules contain their own retry loops; inspect the module before increasing the workload. See [credits and limits](/credits-and-limits), [remote CDP](/concepts/remote-cdp), and the repository's [transport notes](https://github.com/AdsCrawl/adscrawl-scrapers/blob/main/docs/MIGRATION.md).

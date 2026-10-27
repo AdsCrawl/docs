@@ -1,0 +1,232 @@
+---
+title: "Python 网站爬虫样例与使用说明"
+sidebarTitle: "网站爬虫样例"
+description: "安装和运行 AdsCrawl 的 Python 爬虫样例，采集搜索、商品、评论、房产等数据，并配置并发、地区和结果输出。"
+---
+
+[AdsCrawl Scrapers](https://github.com/AdsCrawl/adscrawl-scrapers) 是覆盖 81 个站点的 Python 爬虫示例集。每个站点目录包含解析代码、运行脚本、在线测试和历史输出样例。你可以从某个站点示例开始修改，也可以复用公共远程浏览器客户端编写自己的解析器。
+
+<CardGroup cols={2}>
+  <Card title="查看源码" icon="github" href="https://github.com/AdsCrawl/adscrawl-scrapers">
+    浏览站点模块、运行脚本和完整爬虫目录。
+  </Card>
+
+  <Card title="Python SDK" icon="python" href="/zh/sdks/python">
+    了解身份验证、API 方法和远程 CDP 会话。
+  </Card>
+</CardGroup>
+
+## 安装与配置
+
+准备 Git、**Python 3.10 或更新版本**，以及 [AdsCrawl API Key](https://app.adscrawl.net/dashboard/keys/)。爬虫仓库对 Python 版本的要求高于独立 SDK。
+
+在终端中运行：
+
+```bash
+git clone https://github.com/AdsCrawl/adscrawl-scrapers.git
+cd adscrawl-scrapers
+python -m venv .venv
+```
+
+<Tabs>
+  <Tab title="macOS / Linux">
+    ```bash
+    source .venv/bin/activate
+    python -m pip install -e ".[dev]"
+    export ADSCRAWL_API_KEY="your_api_key"
+    ```
+  </Tab>
+  <Tab title="Windows PowerShell">
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install -e ".[dev]"
+    $env:ADSCRAWL_API_KEY = "your_api_key"
+    ```
+  </Tab>
+</Tabs>
+
+可编辑安装会提供 `adscrawl_scrapers`、AdsCrawl SDK、Playwright、解析器和开发测试依赖。这些示例连接的是**远程 Chromium 浏览器**，无需执行 `playwright install chromium`。
+
+<Note>
+  运行爬虫或站点在线测试会消耗 AdsCrawl 额度。运行前先检查 `run.py` 中的 URL、日期和页数限制。API Key 应通过环境变量配置，不要提交到代码仓库。
+</Note>
+
+## 示例：Bing 搜索与相关关键词
+
+在仓库根目录运行自带脚本：
+
+```bash
+cd bing-scraper
+python run.py
+```
+
+脚本调用 `bing.py` 中的两个函数：
+
+| 函数 | 输入 | 返回结果 |
+| --- | --- | --- |
+| `scrape_search(query, max_pages)` | 搜索词和正整数页数上限 | 搜索结果字典列表 |
+| `scrape_keywords(query)` | 搜索词 | 相关关键词字符串列表 |
+
+自带 `run.py` 使用 `web scraping emails` 作为搜索词，最多采集三页，并将结果保存到 `bing-scraper/` 下的 `results/serps.json` 和 `results/keywords.json`。
+
+如果要修改搜索词并先采集一页，将下面的代码保存为 `bing-scraper/custom.py`，然后在该目录执行 `python custom.py`：
+
+```python
+import json
+from pathlib import Path
+
+import bing
+from adscrawl_scrapers import run
+
+
+async def main():
+    query = "web scraping emails"
+    results = await bing.scrape_search(query=query, max_pages=1)
+    keywords = await bing.scrape_keywords(query=query)
+
+    output = Path(__file__).parent / "custom-results"
+    output.mkdir(exist_ok=True)
+    (output / "search.json").write_text(
+        json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (output / "keywords.json").write_text(
+        json.dumps(keywords, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"Saved {len(results)} results and {len(keywords)} keywords")
+
+
+if __name__ == "__main__":
+    run(main())
+```
+
+搜索结果包含 `position`、`title`、`url`、`origin`、`domain`、`description` 和 `date`，部分值可能缺失或为 null。Bing 对某些搜索词可能不展示相关关键词。该模块显式使用 `countryCode="GB"`，因此默认国家环境变量不会覆盖它的线路。
+
+## 示例：将 ChatGPT 回答保存为 Markdown
+
+从仓库根目录运行：
+
+```bash
+cd chatgpt-scraper
+python run.py
+```
+
+自带脚本调用 `chatgpt.scrape_conversation(prompt)`，将返回的 Markdown 保存到 `chatgpt-scraper/results/conversation.md`。修改 `run.py` 中的 prompt 即可调整问题。
+
+也可以将下面的代码保存为 `chatgpt-scraper/custom.py`，然后在该目录执行 `python custom.py`：
+
+```python
+from pathlib import Path
+
+import chatgpt
+from adscrawl_scrapers import run
+
+
+async def main():
+    markdown = await chatgpt.scrape_conversation(
+        "What is the capital of France?"
+    )
+    Path(__file__).with_name("answer.md").write_text(
+        markdown, encoding="utf-8"
+    )
+
+
+if __name__ == "__main__":
+    run(main())
+```
+
+这个示例通过远程浏览器操作 ChatGPT 网页，再将页面内容转换为 Markdown。返回文本可能包含回答之外的页面内容，可用性取决于网站当前界面和访问要求。
+
+## 选择其他站点
+
+进入对应站点目录，查看 `run.py`，修改输入后在该目录运行。不同站点的函数签名和输出结构各不相同；`bing.py` 等是站点目录中的本地模块，并非已安装的 `adscrawl` SDK 的子模块。
+
+| 场景 | 示例目录 | 典型数据 |
+| --- | --- | --- |
+| 搜索与 AI | [Bing](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/bing-scraper)、[Google](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/google-scraper)、[ChatGPT](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/chatgpt-scraper) | 搜索结果、相关关键词、网页回答 |
+| 商品与电商 | [Shopify](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/shopify-scraper)、[Idealo](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/idealo-scraper)、[Amazon](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/amazon-scraper) | 商品目录、详情、价格、评论 |
+| 社交内容 | [Reddit](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/reddit-scraper)、[Twitter / X](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/twitter-scraper)、[Instagram](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/instagram-scraper) | 公开帖子、资料、评论 |
+| 房产 | [Zillow](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/zillow-scraper)、[Rightmove](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/rightmove-scraper)、[Imovelweb](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/imovelweb-scraper) | 搜索结果和房源详情 |
+| 应用、影视与活动 | [App Store](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/app-store-scraper)、[IMDb](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/imdb-scraper)、[Ticketmaster](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/ticketmaster-scraper) | 应用评论、影视详情、榜单、活动 |
+| 旅行与招聘 | [Booking.com](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/bookingcom-scraper)、[Google Flights](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/google-flights-scraper)、[Indeed](https://github.com/AdsCrawl/adscrawl-scrapers/tree/main/indeed-scraper) | 酒店、航班搜索、招聘信息 |
+
+上表列出仓库已有示例；使用前请查看验证报告中对应函数的状态。完整内容见 [81 个站点目录](https://github.com/AdsCrawl/adscrawl-scrapers#scrapers)和[机器可读函数清单](https://github.com/AdsCrawl/adscrawl-scrapers/blob/main/docs/catalog.json)。
+
+## 并发、地区与会话
+
+| 配置项 | 默认值 | 作用 |
+| --- | --- | --- |
+| `ADSCRAWL_API_KEY` | 必填 | SDK 使用的 API Key |
+| `ADSCRAWL_CONCURRENCY` | `2` | 每个公共爬虫客户端最多同时占用的浏览器会话数；应设为账户容量范围内的正整数 |
+| `ADSCRAWL_DEFAULT_COUNTRY` | `US` | 请求未显式指定 `countryCode` 或自定义 `proxy` 时使用的线路 |
+
+例如，在 macOS 或 Linux 中配置：
+
+```bash
+export ADSCRAWL_CONCURRENCY="1"
+export ADSCRAWL_DEFAULT_COUNTRY="US"
+```
+
+请在启动 Python 前设置变量。PowerShell 对应写法为 `$env:ADSCRAWL_CONCURRENCY = "1"` 和 `$env:ADSCRAWL_DEFAULT_COUNTRY = "US"`。
+
+站点显式设置的 `countryCode` 优先。自定义 `proxy` 不能与 `countryCode` 同时传入。多个客户端或进程会分别占用会话，需要将它们的总用量一起计算。
+
+大多数示例通过 `AsyncAdsCrawl.cdp.create` 创建浏览器，由 Playwright 经 CDP 连接并获取 HTML、网络响应，最后用 `cdp.close` 释放会话。命名会话可在一次站点操作中复用 Cookie、存储和浏览器连接。独立脚本使用 `adscrawl_scrapers.run(...)` 在退出时关闭公共客户端。Air France 使用同步 SDK，Google AI Mode 使用 `spa.extract`。
+
+## 编写自己的解析器
+
+安装仓库并配置 API Key 后，可以将下面的代码保存为 Python 脚本运行：
+
+```python
+from adscrawl_scrapers import Request, ScraperClient, run
+
+
+async def main():
+    async with ScraperClient(concurrency=1) as client:
+        response = await client.fetch(
+            Request("https://example.com", countryCode="US")
+        )
+        print(response.selector.css("title::text").get())
+
+
+if __name__ == "__main__":
+    run(main())
+```
+
+`response.content` 提供页面正文，`response.selector` 用于 CSS/XPath 提取，`response.network` 包含捕获的 XHR/fetch 响应。响应正文为 JSON 时可以调用 `response.json()`。异步上下文管理器会在退出时关闭该客户端的远程会话。
+
+## 验证结果
+
+仓库的[逐站实测报告](https://github.com/AdsCrawl/adscrawl-scrapers/blob/main/docs/live-verification/2026-10-27.md)记录了 **2026 年 10 月 27 日的 81 站测试**。该轮 Bing 测试返回 30 条搜索结果和 8 条相关关键词；ChatGPT 测试的回答包含 “Paris”。这些数量是报告中测试的观察结果，不是上方代码每次运行的保证输出。
+
+整套现有测试通过的站点为 App Store、Bing、ChatGPT、Fashionphile、Idealo、IMDb、Imovelweb、Reddit、Rightmove、Shopify、Similarweb、Ticketmaster、Twitter / X、Vestiaire Collective 和 Zillow。通过状态仅适用于当日已测试的函数及输入。部分站点 README 仍保留较早的验证说明，本轮证据和范围以这份带日期的报告为准。
+
+仓库已有的 `results/` 文件是历史样例。使用数据前应检查本次新生成的输出和必要字段；空结果不能证明爬虫工作正常。
+
+在仓库根目录运行离线检查，无需 API Key，也不消耗额度：
+
+```bash
+python -m pytest tests -q
+python scripts/check_catalog.py
+```
+
+已配置 API Key 时，可以对 Bing 执行在线测试：
+
+```bash
+python -m pytest bing-scraper/test.py -v
+```
+
+最后一条命令会消耗额度。默认 CI 运行离线检查；指定站点的在线测试工作流需要手动触发。
+
+## 常见问题
+
+| 现象 | 检查方法 |
+| --- | --- |
+| `No module named adscrawl_scrapers` | 激活虚拟环境，在仓库根目录执行 `python -m pip install -e ".[dev]"`。 |
+| `No module named bing` 或其他站点模块 | 将自定义脚本放在对应站点模块旁边，并从该站点目录运行。 |
+| API Key 缺失或无效 | 在启动脚本的同一个终端中设置 `ADSCRAWL_API_KEY`。 |
+| API 容量错误或 `SESSION_LIMIT` | 降低并发，检查其他客户端和活动 CDP 会话；关闭不再需要的命名会话。 |
+| 目标站点 HTTP 403/429、登录页或空结果 | 查看实测报告、目标 URL、访问要求和地区配置；先检查返回内容再使用解析数据。 |
+| `TIMEOUT` 或 `SELECTOR_NOT_FOUND` | 检查站点 DOM 和加载方式是否变化，再调整站点选择器与有上限的等待时间。 |
+| `CLEANUP_FAILED` | 检查活动 CDP 会话，关闭本次运行遗留的会话后再重试。 |
+
+公共传输层不会自动重试计费请求。部分站点模块自行实现了重试循环，增加任务量前应查看对应代码。更多信息见[额度与限制](/zh/credits-and-limits)、[远程 CDP](/zh/concepts/remote-cdp)和仓库[传输说明](https://github.com/AdsCrawl/adscrawl-scrapers/blob/main/docs/MIGRATION.md)。
