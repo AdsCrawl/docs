@@ -1,0 +1,143 @@
+---
+title: "ChatGPT 采集 API"
+sidebarTitle: "ChatGPT Scraper"
+description: "通过 POST /ai-search 采集 ChatGPT 回答及可获取的来源信息。了解 API Key 认证、问题、代理地区、浏览器语言与超时参数，使用 cURL、Python 或 Node.js 请求示例接入应用，并根据回答、引用来源、检索来源、广告信息与实际出口网络开展自己的品牌研究和 GEO 分析。"
+keywords:
+  - "ChatGPT 采集 API"
+  - "AI Scrapers"
+  - "AI Search Insights"
+  - "GEO"
+  - "ChatGPT 引用来源"
+api: "POST https://api.adscrawl.net/ai-search"
+playground: "simple"
+---
+
+使用 AdsCrawl ChatGPT Scraper 采集回答及可获取的来源信息，用于品牌研究、引用分析或自己的 GEO 工作流。您可以先在 [AI Search Insights](https://app.adscrawl.net/dashboard/ai-search/) 中设置请求，再打开 **API integration**，复制与当前设置对应的 API 请求。
+
+## 身份认证
+
+在 `x-api-key` 请求头中传入 AdsCrawl API Key，并发送 JSON 请求体。以下示例从应用的 `ADSCRAWL_API_KEY` 环境变量读取密钥，请先设置该变量，并将密钥保存在服务端。
+
+<ParamField header="x-api-key" type="string" required>
+  您的 AdsCrawl API Key，可在 [API keys](https://app.adscrawl.net/dashboard/keys/) 中获取。
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  使用 `application/json`。
+</ParamField>
+
+## 请求参数
+
+<ParamField body="platform" type="string">
+  使用 `chatgpt` 调用当前已上线的 ChatGPT 采集能力。
+</ParamField>
+
+<ParamField body="query" type="string">
+  要提交的问题。如果需要以特定语言回答，请在问题中明确说明。
+</ParamField>
+
+<ParamField body="country_code" type="string">
+  代理地区。`GLOBAL` 表示从支持的地区中随机选择出口。需要指定地区时，请在控制台选择支持的地区，并复制其生成的 API 请求。
+</ParamField>
+
+<ParamField body="locale" type="string">
+  浏览器语言，例如 `en-US`。控制台选择 **Automatic (proxy region)** 时会省略此字段。浏览器语言不决定回答使用的语言。
+</ParamField>
+
+<ParamField body="timeoutMs" type="number">
+  总体采集超时，单位为毫秒。示例使用 `120000`，即 120 秒。控制台提供 10 至 120 秒的超时设置；HTTP 客户端等待时间应长于采集超时。
+</ParamField>
+
+## 请求示例
+
+以下示例使用 Global 代理出口和英语浏览器环境。采集超时设为 120 秒，客户端等待时间设为 140 秒。
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST 'https://api.adscrawl.net/ai-search' \
+  --header "x-api-key: $ADSCRAWL_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --max-time 140 \
+  --data '{
+    "platform": "chatgpt",
+    "query": "Recommend a few good-value phones and include reference sources.",
+    "country_code": "GLOBAL",
+    "locale": "en-US",
+    "timeoutMs": 120000
+  }'
+```
+
+```python Python (requests)
+import os
+import requests
+
+response = requests.post(
+    "https://api.adscrawl.net/ai-search",
+    headers={"x-api-key": os.environ["ADSCRAWL_API_KEY"]},
+    json={
+        "platform": "chatgpt",
+        "query": "Recommend a few good-value phones and include reference sources.",
+        "country_code": "GLOBAL",
+        "locale": "en-US",
+        "timeoutMs": 120000,
+    },
+    timeout=140,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+```javascript Node.js (fetch)
+const apiKey = process.env.ADSCRAWL_API_KEY;
+if (!apiKey) throw new Error("Set ADSCRAWL_API_KEY before running this example.");
+
+const response = await fetch("https://api.adscrawl.net/ai-search", {
+  method: "POST",
+  headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    platform: "chatgpt",
+    query: "Recommend a few good-value phones and include reference sources.",
+    country_code: "GLOBAL",
+    locale: "en-US",
+    timeoutMs: 120000,
+  }),
+  signal: AbortSignal.timeout(140000),
+});
+if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+console.log(await response.json());
+```
+
+</CodeGroup>
+
+## 返回字段
+
+| 字段路径 | 说明 |
+| --- | --- |
+| `result_text` | 采集到的 ChatGPT 回答正文。 |
+| `cited_sources` | 回答中实际引用的来源信息，在可获取时提供。 |
+| `retrieved_sources` | 回答过程中检索到的来源信息，在可获取时提供。请与正文实际引用的来源分开处理。 |
+| `ads` | 采集时观察到的广告信息，仅在出现时提供。 |
+| `country_code` | 此次采集对应的代理地区环境。 |
+| `locale` | 此次采集对应的浏览器语言环境。 |
+| `capture_context.network` | 实际观察到的出口网络环境，可用于核对区域比较中的实际出口。 |
+| `task_id` | 此次采集任务的标识，排查问题时请与结果一同保存。 |
+
+回答取决于问题和采集时可获取的内容，来源与广告可能不存在。将来源、广告或网络信息中的嵌套字段接入应用前，请先检查实际返回数据。
+
+## 地区、语言与分析
+
+请求通过住宅动态代理路由。选择地区本身不保证目标平台一定可访问或返回特定回答。比较多次采集结果时，请保留问题、地区、语言和实际出口网络信息。例如，需要德语回答时，应在 `query` 中明确要求使用德语，同时可单独设置浏览器语言。
+
+您可以将回答和来源数据用于自己的品牌提及、引用或可见性分析。重复采集、定时调度和评分由接入此 API 的业务流程完成。
+
+## AI Scrapers 上线状态
+
+| 平台 | 状态 |
+| --- | --- |
+| ChatGPT | 已上线，使用 `platform: "chatgpt"`。 |
+| Gemini | 即将上线。 |
+| Google AI Mode | 即将上线。 |
+| Google AI Overview | 即将上线。 |
+
+AI Search Insights 当前仅可选择 ChatGPT 执行采集。即将上线的条目尚未提供可调用的平台参数值。

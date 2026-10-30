@@ -1,0 +1,143 @@
+---
+title: "ChatGPT scraper API"
+sidebarTitle: "ChatGPT Scraper"
+description: "POST /ai-search captures ChatGPT answers and available sources. Configure the prompt, proxy region, browser language and timeout for your analysis."
+keywords:
+  - "ChatGPT scraper API"
+  - "AI Scrapers"
+  - "AI Search Insights"
+  - "GEO"
+  - "ChatGPT citations"
+api: "POST https://api.adscrawl.net/ai-search"
+playground: "simple"
+---
+
+Use AdsCrawl ChatGPT Scraper to collect an answer and its available source information for brand research, citation analysis or your own GEO workflow. Configure the request in [AI Search Insights](https://app.adscrawl.net/dashboard/ai-search/), then open **API integration** to copy the request for those settings.
+
+## Authentication
+
+Send your AdsCrawl API key in the `x-api-key` header and a JSON request body. The examples read the key from your application's `ADSCRAWL_API_KEY` environment variable. Set that variable before running them and keep your key on the server.
+
+<ParamField header="x-api-key" type="string" required>
+  Your AdsCrawl API key. Obtain a key from [API keys](https://app.adscrawl.net/dashboard/keys/).
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Use `application/json`.
+</ParamField>
+
+## Request body
+
+<ParamField body="platform" type="string">
+  Use `chatgpt` for the currently available ChatGPT scraper.
+</ParamField>
+
+<ParamField body="query" type="string">
+  The prompt to submit. Include the language you want the answer to use in this text.
+</ParamField>
+
+<ParamField body="country_code" type="string">
+  Proxy-region selection. `GLOBAL` selects a random exit across supported regions. To use a specific supported region, select it in the console and copy its generated API request.
+</ParamField>
+
+<ParamField body="locale" type="string">
+  Browser-language selection, such as `en-US`. The console's **Automatic (proxy region)** setting omits this field. Browser language does not determine the language of the answer.
+</ParamField>
+
+<ParamField body="timeoutMs" type="number">
+  Overall capture timeout in milliseconds. The example uses `120000` (120 seconds). The console exposes a 10 to 120 second timeout control; keep your HTTP client's timeout longer than the capture timeout.
+</ParamField>
+
+## Request examples
+
+These examples use a global proxy exit and an English-language browser. The client waits up to 140 seconds for a capture configured for 120 seconds.
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST 'https://api.adscrawl.net/ai-search' \
+  --header "x-api-key: $ADSCRAWL_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --max-time 140 \
+  --data '{
+    "platform": "chatgpt",
+    "query": "Recommend a few good-value phones and include reference sources.",
+    "country_code": "GLOBAL",
+    "locale": "en-US",
+    "timeoutMs": 120000
+  }'
+```
+
+```python Python (requests)
+import os
+import requests
+
+response = requests.post(
+    "https://api.adscrawl.net/ai-search",
+    headers={"x-api-key": os.environ["ADSCRAWL_API_KEY"]},
+    json={
+        "platform": "chatgpt",
+        "query": "Recommend a few good-value phones and include reference sources.",
+        "country_code": "GLOBAL",
+        "locale": "en-US",
+        "timeoutMs": 120000,
+    },
+    timeout=140,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+```javascript Node.js (fetch)
+const apiKey = process.env.ADSCRAWL_API_KEY;
+if (!apiKey) throw new Error("Set ADSCRAWL_API_KEY before running this example.");
+
+const response = await fetch("https://api.adscrawl.net/ai-search", {
+  method: "POST",
+  headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    platform: "chatgpt",
+    query: "Recommend a few good-value phones and include reference sources.",
+    country_code: "GLOBAL",
+    locale: "en-US",
+    timeoutMs: 120000,
+  }),
+  signal: AbortSignal.timeout(140000),
+});
+if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+console.log(await response.json());
+```
+
+</CodeGroup>
+
+## Response fields
+
+| Field path | Meaning |
+| --- | --- |
+| `result_text` | The captured ChatGPT answer. |
+| `cited_sources` | Sources actually cited in the answer, when available. |
+| `retrieved_sources` | Sources retrieved during the response, when available. Keep these separate from sources cited in the answer. |
+| `ads` | Advertising information observed during capture, when present. |
+| `country_code` | The proxy-region context associated with the capture. |
+| `locale` | The browser-language context associated with the capture. |
+| `capture_context.network` | The observed exit-network context. Use it to check the actual exit when comparing regional results. |
+| `task_id` | The capture-task identifier. Save it with your result when investigating a request. |
+
+Answers depend on the prompt and the response available during capture. Sources and ads may be absent. Inspect the returned data before building assumptions about nested source, ad or network fields into your application.
+
+## Regions, languages and analysis
+
+Requests use dynamic residential proxies. A selected region alone does not guarantee access or a particular answer. Preserve the prompt, region, language and observed network context when comparing captures. To request a German answer, for example, explicitly ask for German in `query` even if you set the browser language separately.
+
+Use the captured answer and source data in your own brand-mention, citation or visibility analysis. Repeated collection, scheduling and scoring belong to the workflow you build around the API.
+
+## AI Scrapers availability
+
+| Platform | Status |
+| --- | --- |
+| ChatGPT | Available with `platform: "chatgpt"`. |
+| Gemini | Coming soon. |
+| Google AI Mode | Coming soon. |
+| Google AI Overview | Coming soon. |
+
+Only ChatGPT is currently selectable for capture in AI Search Insights. Coming-soon entries do not provide a callable platform value.

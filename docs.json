@@ -97,7 +97,8 @@
                   "api-reference/html",
                   "api-reference/screenshot",
                   "api-reference/spa-extract",
-                  "api-reference/spa-extract-templates"
+                  "api-reference/spa-extract-templates",
+                  "api-reference/similar-sites"
                 ]
               },
               {
@@ -119,6 +120,12 @@
                   "api-reference/cloud-browsers-launch",
                   "api-reference/cloud-browsers-start",
                   "api-reference/cloud-browsers-stop"
+                ]
+              },
+              {
+                "group": "AI Scrapers",
+                "pages": [
+                  "api-reference/ai-search"
                 ]
               }
             ]
@@ -196,7 +203,8 @@
                   "zh/api-reference/html",
                   "zh/api-reference/screenshot",
                   "zh/api-reference/spa-extract",
-                  "zh/api-reference/spa-extract-templates"
+                  "zh/api-reference/spa-extract-templates",
+                  "zh/api-reference/similar-sites"
                 ]
               },
               {
@@ -218,6 +226,12 @@
                   "zh/api-reference/cloud-browsers-launch",
                   "zh/api-reference/cloud-browsers-start",
                   "zh/api-reference/cloud-browsers-stop"
+                ]
+              },
+              {
+                "group": "AI Scrapers",
+                "pages": [
+                  "zh/api-reference/ai-search"
                 ]
               }
             ]

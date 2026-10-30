@@ -1,0 +1,111 @@
+---
+title: "Similar websites 相似网站 API"
+sidebarTitle: "相似网站"
+description: "通过 POST /similar-sites 提交目标网址并查找业务相关的网站。本文说明 API Key 认证、JSON 请求参数、超时设置，以及目标网站资料、候选网址和匹配分数等返回字段，提供 cURL、Python 与 Node.js 调用示例，帮助您将相似网站发现接入自己的竞品研究与定期采集流程。"
+keywords:
+  - "相似网站 API"
+  - "竞品发现 API"
+  - "POST /similar-sites"
+api: "POST https://api.adscrawl.net/similar-sites"
+playground: "simple"
+---
+
+AdsCrawl Similar websites 先通过 AI 理解目标网站的业务，再通过搜索引擎发现相关企业。提交目标网址后，可获得最多 8 个按相关性排序的推荐，以及目标网站资料和各候选网站的匹配分数。
+
+## 身份认证
+
+<ParamField header="x-api-key" type="string" required>
+  您的 AdsCrawl API Key。请在服务端应用中保存密钥，并通过请求头发送。
+</ParamField>
+
+使用 JSON 请求体，并设置 `Content-Type: application/json`。
+
+## 请求参数
+
+<ParamField body="url" type="string">
+  用于发现相似网站的目标网址。以下示例使用 `https://adspower.net/`。
+</ParamField>
+
+<ParamField body="timeoutMs" type="number">
+  请求超时，单位为毫秒。控制台的接入示例使用 `45000`，即 45 秒。
+</ParamField>
+
+`45000` 是示例配置，不代表已声明的默认值或上下限。建议让 HTTP 客户端等待时间长于请求的采集超时；以下示例为客户端预留 60 秒。
+
+## 调用示例
+
+运行前，在本地终端或应用环境中设置 `ADSCRAWL_API_KEY`，并将示例网址替换为您希望研究的网站。
+
+<CodeGroup>
+
+```bash cURL
+curl --fail-with-body --max-time 60 \
+  --request POST 'https://api.adscrawl.net/similar-sites' \
+  --header "x-api-key: ${ADSCRAWL_API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{"url":"https://adspower.net/","timeoutMs":45000}'
+```
+
+```python Python
+import json
+import os
+import urllib.request
+
+request = urllib.request.Request(
+    "https://api.adscrawl.net/similar-sites",
+    data=json.dumps({
+        "url": "https://adspower.net/",
+        "timeoutMs": 45000,
+    }).encode("utf-8"),
+    headers={
+        "x-api-key": os.environ["ADSCRAWL_API_KEY"],
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(request, timeout=60) as response:
+    print(json.loads(response.read()))
+```
+
+```javascript Node.js
+const response = await fetch("https://api.adscrawl.net/similar-sites", {
+  method: "POST",
+  headers: {
+    "x-api-key": process.env.ADSCRAWL_API_KEY,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    url: "https://adspower.net/",
+    timeoutMs: 45000,
+  }),
+  signal: AbortSignal.timeout(60000),
+});
+if (!response.ok) {
+  throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+}
+console.log(await response.json());
+```
+
+</CodeGroup>
+
+## 返回字段
+
+控制台的接入面板列出了以下字段。将结果映射到应用的数据模型前，请先检查实际返回的 JSON。
+
+| 字段 | 说明 |
+| --- | --- |
+| `target.url` | 目标网站的网址。 |
+| `target.title` | 目标网站的标题。 |
+| `target.description` | 目标网站的描述。 |
+| `target.logo` | 与目标网站关联的 Logo 信息。 |
+| `candidates[].url` | 推荐网站的网址。 |
+| `candidates[].title` | 推荐网站的标题。 |
+| `candidates[].score` | 相关性匹配分数，以 0 至 100 展示。 |
+
+匹配分数用于安排后续研究的优先级，不代表市场份额、搜索排名，也不能证明某个网站一定是直接竞品。推荐结果是研究候选名单，不是完整的市场清单。
+
+## 定期发现与研究
+
+通过自己的调度器定期调用此接口并保存推荐名单。评估新发现的域名后，再使用独立的网页采集请求获取公开页面，对比定价、产品更新或营销活动。任务调度、快照比较和通知由您的应用完成，不属于此发现接口的返回字段。
+
+您也可以先在 [Similar websites 控制台](https://app.adscrawl.net/dashboard/similar-sites/)探索请求。打开 **Integration details** 查看调用示例，使用 **Download JSON** 检查已有结果。

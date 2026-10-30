@@ -1,0 +1,111 @@
+---
+title: "Similar websites API"
+sidebarTitle: "Similar websites"
+description: "Find related websites with POST /similar-sites. Send a URL with your API key, then use website details and relevance scores to build a research shortlist."
+keywords:
+  - "similar websites API"
+  - "competitor discovery API"
+  - "POST /similar-sites"
+api: "POST https://api.adscrawl.net/similar-sites"
+playground: "simple"
+---
+
+AdsCrawl Similar websites analyzes a website's business with AI, then searches the web for related businesses. Send a target URL to receive up to eight recommendations ranked by relevance, with the target website's details and a match score for each candidate.
+
+## Authentication
+
+<ParamField header="x-api-key" type="string" required>
+  Your AdsCrawl API key. Keep it in your server-side application and send it in the request header.
+</ParamField>
+
+Send the request body as JSON with `Content-Type: application/json`.
+
+## Request body
+
+<ParamField body="url" type="string">
+  The website to use as the starting point for discovery. The examples use `https://adspower.net/`.
+</ParamField>
+
+<ParamField body="timeoutMs" type="number">
+  Request timeout in milliseconds. The console's integration example uses `45000` (45 seconds).
+</ParamField>
+
+`45000` is an example setting, not a documented default or limit. Give your HTTP client more time than the requested capture timeout; the examples below allow 60 seconds.
+
+## Request examples
+
+Set `ADSCRAWL_API_KEY` in your local shell or application environment before running an example. Replace the sample URL with the website you want to research.
+
+<CodeGroup>
+
+```bash cURL
+curl --fail-with-body --max-time 60 \
+  --request POST 'https://api.adscrawl.net/similar-sites' \
+  --header "x-api-key: ${ADSCRAWL_API_KEY}" \
+  --header 'Content-Type: application/json' \
+  --data '{"url":"https://adspower.net/","timeoutMs":45000}'
+```
+
+```python Python
+import json
+import os
+import urllib.request
+
+request = urllib.request.Request(
+    "https://api.adscrawl.net/similar-sites",
+    data=json.dumps({
+        "url": "https://adspower.net/",
+        "timeoutMs": 45000,
+    }).encode("utf-8"),
+    headers={
+        "x-api-key": os.environ["ADSCRAWL_API_KEY"],
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(request, timeout=60) as response:
+    print(json.loads(response.read()))
+```
+
+```javascript Node.js
+const response = await fetch("https://api.adscrawl.net/similar-sites", {
+  method: "POST",
+  headers: {
+    "x-api-key": process.env.ADSCRAWL_API_KEY,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    url: "https://adspower.net/",
+    timeoutMs: 45000,
+  }),
+  signal: AbortSignal.timeout(60000),
+});
+if (!response.ok) {
+  throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+}
+console.log(await response.json());
+```
+
+</CodeGroup>
+
+## Response fields
+
+The console's integration panel identifies these fields. Inspect the returned JSON before mapping it into your application's data model.
+
+| Field | Meaning |
+| --- | --- |
+| `target.url` | Target website URL. |
+| `target.title` | Target website title. |
+| `target.description` | Target website description. |
+| `target.logo` | Logo information associated with the target website. |
+| `candidates[].url` | Recommended website URL. |
+| `candidates[].title` | Recommended website title. |
+| `candidates[].score` | Relevance match score, shown from 0 to 100. |
+
+A match score helps you prioritize further research. It is not market share, a search ranking or proof that a website is a direct competitor. Recommendations are a shortlist, not a complete market inventory.
+
+## Repeat discovery over time
+
+Call this endpoint from your own scheduler and save each recommendation list. Review new domains, then collect selected public pages with a separate web scraping request to compare pricing, product updates or campaigns. Scheduling, snapshot comparison and alerts belong in your application; they are not fields returned by this discovery endpoint.
+
+You can also explore a request in the [Similar websites console](https://app.adscrawl.net/dashboard/similar-sites/). Open **Integration details** for the request example and choose **Download JSON** to inspect an existing result.
