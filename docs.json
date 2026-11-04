@@ -279,5 +279,10 @@
       },
       "server": "https://api.adscrawl.net"
     }
+  },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-F0ZW9VMNR2"
+    }
   }
 }
