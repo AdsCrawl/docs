@@ -125,7 +125,10 @@
               {
                 "group": "AI Scrapers",
                 "pages": [
-                  "api-reference/ai-search"
+                  "api-reference/ai-search",
+                  "api-reference/gemini-scraper",
+                  "api-reference/google-ai-mode-scraper",
+                  "api-reference/google-ai-overview-scraper"
                 ]
               }
             ]
@@ -231,7 +234,10 @@
               {
                 "group": "AI Scrapers",
                 "pages": [
-                  "zh/api-reference/ai-search"
+                  "zh/api-reference/ai-search",
+                  "zh/api-reference/gemini-scraper",
+                  "zh/api-reference/google-ai-mode-scraper",
+                  "zh/api-reference/google-ai-overview-scraper"
                 ]
               }
             ]

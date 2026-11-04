@@ -33,7 +33,7 @@ playground: "simple"
 </ParamField>
 
 <ParamField body="query" type="string">
-  要提交的问题。如果需要以特定语言回答，请在问题中明确说明。
+  要提交的问题。控制台最多接受 500 个字符，并保留换行与原始措辞。如果需要以特定语言回答，请在问题中明确说明。
 </ParamField>
 
 <ParamField body="country_code" type="string">
@@ -131,13 +131,15 @@ console.log(await response.json());
 
 您可以将回答和来源数据用于自己的品牌提及、引用或可见性分析。重复采集、定时调度和评分由接入此 API 的业务流程完成。
 
-## AI Scrapers 上线状态
+## AI Scrapers 支持的平台
 
-| 平台 | 状态 |
-| --- | --- |
-| ChatGPT | 已上线，使用 `platform: "chatgpt"`。 |
-| Gemini | 即将上线。 |
-| Google AI Mode | 即将上线。 |
-| Google AI Overview | 即将上线。 |
+[AI Search Insights](https://app.adscrawl.net/dashboard/ai-search/) 已可选择以下四个平台，均使用 `POST /ai-search`。每个平台分别发送一次请求。
 
-AI Search Insights 当前仅可选择 ChatGPT 执行采集。即将上线的条目尚未提供可调用的平台参数值。
+| 平台 | `platform` 参数值 | API 文档 |
+| --- | --- | --- |
+| ChatGPT | `chatgpt` | [ChatGPT Scraper](/zh/api-reference/ai-search) |
+| Gemini | `gemini` | [Gemini Scraper](/zh/api-reference/gemini-scraper) |
+| Google AI Mode | `google-ai-mode` | [Google AI Mode Scraper](/zh/api-reference/google-ai-mode-scraper) |
+| Google AI Overview | `google-ai-overview` | [Google AI Overview Scraper](/zh/api-reference/google-ai-overview-scraper) |
+
+跨平台比较时，尽量保持问题、代理地区和浏览器语言一致，并保留每次采集的日期、任务 ID 与实际出口网络。平台可选不代表每个问题都一定有回答、来源或广告。

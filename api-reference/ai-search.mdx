@@ -33,7 +33,7 @@ Send your AdsCrawl API key in the `x-api-key` header and a JSON request body. Th
 </ParamField>
 
 <ParamField body="query" type="string">
-  The prompt to submit. Include the language you want the answer to use in this text.
+  The prompt to submit. The console accepts up to 500 characters and preserves line breaks and original wording. Include the language you want the answer to use in this text.
 </ParamField>
 
 <ParamField body="country_code" type="string">
@@ -133,11 +133,13 @@ Use the captured answer and source data in your own brand-mention, citation or v
 
 ## AI Scrapers availability
 
-| Platform | Status |
-| --- | --- |
-| ChatGPT | Available with `platform: "chatgpt"`. |
-| Gemini | Coming soon. |
-| Google AI Mode | Coming soon. |
-| Google AI Overview | Coming soon. |
+All four platforms are selectable in [AI Search Insights](https://app.adscrawl.net/dashboard/ai-search/) and use `POST /ai-search`. Send a separate request for each platform.
 
-Only ChatGPT is currently selectable for capture in AI Search Insights. Coming-soon entries do not provide a callable platform value.
+| Platform | `platform` value | API guide |
+| --- | --- | --- |
+| ChatGPT | `chatgpt` | [ChatGPT Scraper](/api-reference/ai-search) |
+| Gemini | `gemini` | [Gemini Scraper](/api-reference/gemini-scraper) |
+| Google AI Mode | `google-ai-mode` | [Google AI Mode Scraper](/api-reference/google-ai-mode-scraper) |
+| Google AI Overview | `google-ai-overview` | [Google AI Overview Scraper](/api-reference/google-ai-overview-scraper) |
+
+Keep the query, requested region and browser language consistent when comparing platforms. Preserve each capture’s date, task ID and observed network context. Availability of a platform does not guarantee an answer, citation or ad for every query.
