@@ -293,5 +293,10 @@
     "ga4": {
       "measurementId": "G-F0ZW9VMNR2"
     }
+  },
+  "seo": {
+    "metatags": {
+      "canonical": "https://docs.adscrawl.net"
+    }
   }
 }
