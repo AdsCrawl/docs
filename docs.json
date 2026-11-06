@@ -145,6 +145,7 @@
               {
                 "group": "快速上手",
                 "pages": [
+                  "zh/index",
                   "zh/introduction",
                   "zh/quickstart",
                   "zh/authentication",
@@ -291,6 +292,11 @@
   "integrations": {
     "ga4": {
       "measurementId": "G-F0ZW9VMNR2"
+    }
+  },
+  "seo": {
+    "metatags": {
+      "canonical": "https://docs.adscrawl.net"
     }
   }
 }

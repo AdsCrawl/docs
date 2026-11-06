@@ -8,100 +8,120 @@ Remote CDP gives you a dedicated, managed Chromium session that you connect to u
 
 ## How it works
 
-<Steps>
-  <Step title="Create a session">
-    Send `POST /cdp/sessions` with your desired `idleTimeoutMs`, `maxSessionMs`, and `browserSettings`. The API responds with a `sessionId` and a `cdpBaseUrl` that already contains your data token.
+<div itemScope itemType="https://schema.org/HowTo">
+  <span itemProp="name" hidden>Remote CDP: Connect Any CDP Client to a Cloud Browser</span>
 
-    ```bash
-    curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
-      -H "content-type: application/json" \
-      -H "x-api-key: YOUR_API_KEY" \
-      -d '{
-        "idleTimeoutMs": 600000,
-        "maxSessionMs": 3600000,
-        "browserSettings": {
-          "viewport": { "width": 1440, "height": 900 },
-          "countryCode": "GLOBAL",
-          "userAgentMode": "random",
-          "userAgentOs": "windows"
-        }
-      }'
-    ```
+  <Steps>
+    <Step title="Create a session">
+      <div itemProp="step" itemScope itemType="https://schema.org/HowToStep">
+        <span itemProp="name" hidden>Create a session</span>
 
-    The response looks like:
+        <p itemProp="text">Send `POST /cdp/sessions` with your desired `idleTimeoutMs`, `maxSessionMs`, and `browserSettings`. The API responds with a `sessionId` and a `cdpBaseUrl` that already contains your data token.</p>
+      </div>
 
-    ```json
-    {
-      "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
-      "expiresAt": "2026-04-21T10:30:00.000Z",
-      "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
-    }
-    ```
-  </Step>
+      ```bash
+      curl -sS -X POST "https://api.adscrawl.net/cdp/sessions" \
+        -H "content-type: application/json" \
+        -H "x-api-key: YOUR_API_KEY" \
+        -d '{
+          "idleTimeoutMs": 600000,
+          "maxSessionMs": 3600000,
+          "browserSettings": {
+            "viewport": { "width": 1440, "height": 900 },
+            "countryCode": "GLOBAL",
+            "userAgentMode": "random",
+            "userAgentOs": "windows"
+          }
+        }'
+      ```
 
-  <Step title="Connect with Playwright or Puppeteer">
-    Pass `cdpBaseUrl` directly to your automation library. No additional configuration is needed.
+      The response looks like:
 
-    <CodeGroup>
-      ```typescript Playwright (TypeScript)
-      import { chromium } from 'playwright';
+      ```json
+      {
+        "sessionId": "6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef",
+        "expiresAt": "2026-04-21T10:30:00.000Z",
+        "cdpBaseUrl": "https://api.adscrawl.net/cdp/sessions/6c3f7d14-7fe4-4c8e-9f1b-0b6d6f2fa2ef?token=<data-token>"
+      }
+      ```
+    </Step>
 
-      const browser = await chromium.connectOverCDP(
-        'https://api.adscrawl.net/cdp/sessions/SESSION_ID?token=DATA_TOKEN'
-      );
+    <Step title="Connect with Playwright or Puppeteer">
+      <div itemProp="step" itemScope itemType="https://schema.org/HowToStep">
+        <span itemProp="name" hidden>Connect with Playwright or Puppeteer</span>
+
+        <p itemProp="text">Pass `cdpBaseUrl` directly to your automation library. No additional configuration is needed.</p>
+      </div>
+
+      <CodeGroup>
+        ```typescript Playwright (TypeScript)
+        import { chromium } from 'playwright';
+
+        const browser = await chromium.connectOverCDP(
+          'https://api.adscrawl.net/cdp/sessions/SESSION_ID?token=DATA_TOKEN'
+        );
+        const page = await browser.newPage();
+        await page.goto('https://example.com');
+        const title = await page.title();
+        console.log(title);
+        await browser.close();
+        ```
+
+        ```javascript Puppeteer (JavaScript)
+        import puppeteer from 'puppeteer-core';
+
+        const browser = await puppeteer.connect({
+          browserWSEndpoint:
+            'wss://api.adscrawl.net/cdp/sessions/SESSION_ID/devtools/browser/BROWSER_ID?token=DATA_TOKEN',
+        });
+        const page = await browser.newPage();
+        await page.goto('https://example.com');
+        console.log(await page.title());
+        await browser.close();
+        ```
+
+        ```javascript Raw CDP (JavaScript)
+        const discovery = await fetch(
+          'https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN'
+        ).then((res) => res.json());
+
+        const socket = new WebSocket(discovery.webSocketDebuggerUrl);
+        ```
+      </CodeGroup>
+    </Step>
+
+    <Step title="Automate the page">
+      <div itemProp="step" itemScope itemType="https://schema.org/HowToStep">
+        <span itemProp="name" hidden>Automate the page</span>
+
+        <p itemProp="text">Navigate, interact, and extract data using the full Playwright or Puppeteer API surface — the remote browser behaves identically to a local one.</p>
+      </div>
+
+      ```typescript
       const page = await browser.newPage();
-      await page.goto('https://example.com');
-      const title = await page.title();
-      console.log(title);
-      await browser.close();
+      await page.goto('https://example.com/login');
+      await page.fill('#email', 'user@example.com');
+      await page.fill('#password', 'secret');
+      await page.click('button[type="submit"]');
+      await page.waitForNavigation();
+      const accountName = await page.textContent('.account-name');
       ```
+    </Step>
 
-      ```javascript Puppeteer (JavaScript)
-      import puppeteer from 'puppeteer-core';
+    <Step title="Delete the session when done">
+      <div itemProp="step" itemScope itemType="https://schema.org/HowToStep">
+        <span itemProp="name" hidden>Delete the session when done</span>
 
-      const browser = await puppeteer.connect({
-        browserWSEndpoint:
-          'wss://api.adscrawl.net/cdp/sessions/SESSION_ID/devtools/browser/BROWSER_ID?token=DATA_TOKEN',
-      });
-      const page = await browser.newPage();
-      await page.goto('https://example.com');
-      console.log(await page.title());
-      await browser.close();
+        <p itemProp="text">Call `DELETE /cdp/sessions/:sessionId` to terminate the browser and release resources immediately, rather than waiting for the idle or max-session timeout to expire.</p>
+      </div>
+
+      ```bash
+      curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
+        -H "x-api-key: YOUR_API_KEY"
       ```
-
-      ```javascript Raw CDP (JavaScript)
-      const discovery = await fetch(
-        'https://api.adscrawl.net/cdp/sessions/SESSION_ID/json/version?token=DATA_TOKEN'
-      ).then((res) => res.json());
-
-      const socket = new WebSocket(discovery.webSocketDebuggerUrl);
-      ```
-    </CodeGroup>
-  </Step>
-
-  <Step title="Automate the page">
-    Navigate, interact, and extract data using the full Playwright or Puppeteer API surface — the remote browser behaves identically to a local one.
-
-    ```typescript
-    const page = await browser.newPage();
-    await page.goto('https://example.com/login');
-    await page.fill('#email', 'user@example.com');
-    await page.fill('#password', 'secret');
-    await page.click('button[type="submit"]');
-    await page.waitForNavigation();
-    const accountName = await page.textContent('.account-name');
-    ```
-  </Step>
-
-  <Step title="Delete the session when done">
-    Call `DELETE /cdp/sessions/:sessionId` to terminate the browser and release resources immediately, rather than waiting for the idle or max-session timeout to expire.
-
-    ```bash
-    curl -sS -X DELETE "https://api.adscrawl.net/cdp/sessions/SESSION_ID" \
-      -H "x-api-key: YOUR_API_KEY"
-    ```
-  </Step>
-</Steps>
+    </Step>
+  </Steps>
+</div>
 
 ## Security model
 
