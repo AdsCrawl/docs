@@ -145,6 +145,7 @@
               {
                 "group": "快速上手",
                 "pages": [
+                  "zh/index",
                   "zh/introduction",
                   "zh/quickstart",
                   "zh/authentication",

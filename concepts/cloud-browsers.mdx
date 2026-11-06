@@ -50,43 +50,55 @@ When a cloud browser is `running`, the `runtime.connectUrl` field contains a URL
 
 Use this approach when you want to save a profile for later or when you need fine-grained control over when the browser starts.
 
-<Steps>
-  <Step title="Create the profile">
-    `POST /cloud-browsers` saves the profile configuration and returns an `id`. The browser is **not** started yet and consumes no running quota.
+<div itemScope itemType="https://schema.org/HowTo">
+  <span itemProp="name" hidden>Option 1: Create then Start</span>
 
-    ```bash
-    curl --fail-with-body -sS -X POST "https://api.adscrawl.net/cloud-browsers" \
-      -H "X-API-Key: YOUR_API_KEY" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "remark": "work profile",
-        "browserSettings": {
-          "viewport": { "width": 1440, "height": 900 }
-        }
-      }'
-    ```
-  </Step>
+  <Steps>
+    <Step title="Create the profile">
+      <div itemProp="step" itemScope itemType="https://schema.org/HowToStep">
+        <span itemProp="name" hidden>Create the profile</span>
 
-  <Step title="Start the browser">
-    `POST /cloud-browsers/:id/start` launches the saved profile. Pass your proxy on **every** start request — saved proxy settings do not replace the required top-level `proxy` field for API key callers.
+        <p itemProp="text">`POST /cloud-browsers` saves the profile configuration and returns an `id`. The browser is **not** started yet and consumes no running quota.</p>
+      </div>
 
-    ```bash
-    curl --fail-with-body -sS -X POST \
-      "https://api.adscrawl.net/cloud-browsers/BROWSER_ID/start" \
-      -H "X-API-Key: YOUR_API_KEY" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "proxy": {
-          "server": "http://proxy.example.com:8080",
-          "username": "proxy-user",
-          "password": "proxy-password"
-        }
-      }'
-    ```
+      ```bash
+      curl --fail-with-body -sS -X POST "https://api.adscrawl.net/cloud-browsers" \
+        -H "X-API-Key: YOUR_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "remark": "work profile",
+          "browserSettings": {
+            "viewport": { "width": 1440, "height": 900 }
+          }
+        }'
+      ```
+    </Step>
 
-    The endpoint waits for startup confirmation and returns `200` only once the browser reaches `running`.
-  </Step>
-</Steps>
+    <Step title="Start the browser">
+      <div itemProp="step" itemScope itemType="https://schema.org/HowToStep">
+        <span itemProp="name" hidden>Start the browser</span>
+
+        <p itemProp="text">`POST /cloud-browsers/:id/start` launches the saved profile. Pass your proxy on **every** start request — saved proxy settings do not replace the required top-level `proxy` field for API key callers.</p>
+      </div>
+
+      ```bash
+      curl --fail-with-body -sS -X POST \
+        "https://api.adscrawl.net/cloud-browsers/BROWSER_ID/start" \
+        -H "X-API-Key: YOUR_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "proxy": {
+            "server": "http://proxy.example.com:8080",
+            "username": "proxy-user",
+            "password": "proxy-password"
+          }
+        }'
+      ```
+
+      The endpoint waits for startup confirmation and returns `200` only once the browser reaches `running`.
+    </Step>
+  </Steps>
+</div>
 
 ### Option 2: Launch in one step
 

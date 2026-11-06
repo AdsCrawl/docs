@@ -37,22 +37,36 @@ Use `waitUntil: "domcontentloaded"` for most HTML extraction tasks — it is fas
 
 AdsCrawl maintains a catalog of ready-made site templates (e.g., `similarweb-overview`, `google-trends-explore`, `chrome-web-store-app-info`). Retrieve the full list with `GET /spa-extract/templates`.
 
-## How credits work
+<div itemScope itemType="https://schema.org/FAQPage">
+  ## How credits work
 
-One credit is deducted per browser task request. The charge happens **after validation** (so bad requests are free) but **before the browser launches** (so navigation failures still cost one credit). Check your balance in the [dashboard](https://app.adscrawl.net/dashboard/) before running large batches.
+  <div itemProp="mainEntity" itemScope itemType="https://schema.org/Question">
+    <p itemProp="name"><strong>When is a browser task charged?</strong></p>
 
-## Proxy behavior
+    <div itemProp="acceptedAnswer" itemScope itemType="https://schema.org/Answer">
+      <p itemProp="text">One credit is deducted per browser task request. The charge happens **after validation** (so bad requests are free) but **before the browser launches** (so navigation failures still cost one credit). Check your balance in the [dashboard](https://app.adscrawl.net/dashboard/) before running large batches.</p>
+    </div>
+  </div>
 
-Every browser task runs through a proxy. You control which proxy is used with two optional fields:
+  ## Proxy behavior
 
-| Setting | Behavior |
-|---|---|
-| Neither field set | Random trusted residential proxy assigned automatically |
-| `countryCode: "US"` | Managed proxy preferring a trusted exit in that region, with dynamic fallback |
-| `countryCode: "GLOBAL"` | Dynamic exit rotating across 15 popular regions |
-| `proxy` object | Your own HTTP or SOCKS5 proxy server |
+  Every browser task runs through a proxy. You control which proxy is used with two optional fields:
 
-`countryCode` and `proxy` are mutually exclusive — pass one or the other, never both.
+  | Setting                 | Behavior                                                                      |
+  | ----------------------- | ----------------------------------------------------------------------------- |
+  | Neither field set       | Random trusted residential proxy assigned automatically                       |
+  | `countryCode: "US"`     | Managed proxy preferring a trusted exit in that region, with dynamic fallback |
+  | `countryCode: "GLOBAL"` | Dynamic exit rotating across 15 popular regions                               |
+  | `proxy` object          | Your own HTTP or SOCKS5 proxy server                                          |
+
+  <div itemProp="mainEntity" itemScope itemType="https://schema.org/Question">
+    <p itemProp="name"><strong>Can I send both `countryCode` and `proxy`?</strong></p>
+
+    <div itemProp="acceptedAnswer" itemScope itemType="https://schema.org/Answer">
+      <p itemProp="text">`countryCode` and `proxy` are mutually exclusive — pass one or the other, never both.</p>
+    </div>
+  </div>
+</div>
 
 ## Request limits
 

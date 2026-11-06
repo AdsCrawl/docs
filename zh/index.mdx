@@ -1,0 +1,52 @@
+---
+title: "AdsCrawl 文档：浏览器自动化 API 参考与指南"
+sidebarTitle: "文档首页"
+description: "了解如何通过住宅代理获取渲染后的 HTML、提取结构化数据、截取页面，以及使用 Playwright 或 Puppeteer 连接浏览器会话。"
+en_link: "https://docs.adscrawl.net/"
+---
+
+AdsCrawl 为开发者提供浏览器自动化 API。你可以发送一次请求获取网页渲染结果，也可以连接远程浏览器，完成跨页面或需要登录的操作。本指南涵盖从第一次 `curl` 请求到生产环境 Playwright 会话所需的身份验证、端点和示例。
+
+## 从这里开始
+
+<CardGroup cols={2}>
+  <Card title="快速开始" icon="rocket" href="/zh/quickstart">
+    发送你的第一条 API 请求，并检查返回结果。
+  </Card>
+  <Card title="身份验证" icon="key" href="/zh/authentication">
+    了解 API 密钥、会话令牌和数据令牌的区别。
+  </Card>
+  <Card title="获取 HTML" icon="code" href="/zh/guides/fetch-html">
+    渲染页面并获取 HTML、Markdown 或文章 JSON。
+  </Card>
+  <Card title="API 参考" icon="book" href="/zh/api-reference/html">
+    查看端点的请求参数和响应格式。
+  </Card>
+  <Card title="云浏览器" icon="cloud" href="/zh/concepts/cloud-browsers">
+    保存浏览器配置文件，打开实时查看器并复用会话状态。
+  </Card>
+  <Card title="定价" icon="credit-card" href="/zh/pricing">
+    对比 Free、Hobby、Starter 和 Pro 的积分与限制。
+  </Card>
+</CardGroup>
+
+## 三步发送第一条请求
+
+<Steps>
+  <Step title="创建免费账户">
+    在[注册页](https://app.adscrawl.net/register/)创建账户。免费套餐包含 500 积分和一个 API 密钥，无需信用卡。
+  </Step>
+  <Step title="复制 API 密钥">
+    在[控制台](https://app.adscrawl.net/dashboard/)复制密钥，保存到服务器环境变量或密钥管理器中。不要把密钥放进客户端代码。
+  </Step>
+  <Step title="发起请求">
+    通过 `x-api-key` 请求头传递密钥，向 `/html` 提交目标 URL。下面的示例请求文章的 Markdown：
+
+    ```bash
+    curl --fail-with-body -sS -X POST "https://api.adscrawl.net/html" \
+      -H "content-type: application/json" \
+      -H "x-api-key: $ADSCRAWL_API_KEY" \
+      -d '{"url":"https://example.com/article","contentMode":"markdown","waitUntil":"domcontentloaded"}'
+    ```
+  </Step>
+</Steps>
