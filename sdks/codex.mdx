@@ -4,7 +4,15 @@ description: "Use the AdsCrawl Codex plugin to render pages, and capture full-pa
 sidebarTitle: "Codex Plugin"
 ---
 
-The AdsCrawl Codex plugin adds browser-rendered page reading and screenshots to [OpenAI Codex](https://openai.com/codex/). It bundles an `adscrawl-browser` skill and a Python 3.9+ command that uses only the standard library. It calls the AdsCrawl API using your `ADSCRAWL_API_KEY` and does not bundle credentials.
+The AdsCrawl Codex plugin lets you ask Codex to read a JavaScript-rendered page as Markdown, HTML or article JSON, or save the page as a PNG screenshot.
+
+## Pricing
+
+The plugin is free to install. AdsCrawl bills the connected account for browser requests. Free includes 500 credits once at USD 0. Monthly plans are Hobby at USD 9 for 3,000 credits, Starter at USD 49 for 100,000 and Pro at USD 199 for 500,000. A `render` or `screenshot` request costs 1 credit after validation, including when execution subsequently fails. [Plan prices](/pricing) · [Credit rules](/credits-and-limits)
+
+## Limits
+
+The bundled command requires Python 3.9+ and an AdsCrawl API key. It reads one URL per invocation. Its default timeout is 60 seconds and `--timeout-ms` accepts up to 3,600,000 ms. For a sequence of clicks or form submissions, use a remote CDP session with your browser automation library. Sites can require login or return a verification page. [Remote CDP](/concepts/remote-cdp)
 
 ## Features
 
@@ -64,7 +72,7 @@ python3 plugins/adscrawl/scripts/adscrawl.py render \
 ```
 
 <Note>
-  `--format` accepts `markdown`, `html`, or `json` (structured article).
+`--format` accepts `markdown`, `html`, or `article` (structured article JSON).
 </Note>
 
 ### Capture a screenshot

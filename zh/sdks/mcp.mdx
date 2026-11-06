@@ -1,0 +1,28 @@
+---
+title: "AdsCrawl MCP 服务"
+sidebarTitle: "MCP 服务"
+description: "了解 AdsCrawl MCP 的用途、套餐价格和会话限制，并连接远程浏览器读取第一个页面。"
+keywords:
+  - "AdsCrawl"
+  - "MCP"
+  - "Streamable HTTP"
+---
+
+AdsCrawl MCP 服务让兼容 MCP 的客户端在同一远程浏览器会话中打开网页、读取渲染后的内容、点击或填写表单，并捕获截图。
+
+## 定价
+
+MCP 服务使用你的 AdsCrawl 账户。Free 为 0 美元，一次性获得 500 credits。付费套餐按月计费，Hobby 为 9 美元含 3,000 credits，Starter 为 49 美元含 100,000 credits，Pro 为 199 美元含 500,000 credits。`browser_open` 会创建计费的远程 CDP 会话。用完后调用 `browser_close`，检查返回的 `confirmed: true` 以确认会话已停止。实际用量可到控制台的 Billing & Usage 核对。[套餐定价](/zh/pricing) · [计费规则](/zh/credits-and-limits)
+
+## 限制
+
+客户端需要支持 Streamable HTTP，并能以保密方式发送 `x-api-key` 请求头。远程 CDP 会话共用该密钥的并发上限。创建会话返回 HTTP 429 时，可先关闭已有会话或等待空闲名额。目标站点仍可能要求登录、返回验证页或拒绝访问。`browser_screenshot` 会发布 JPEG，持有链接的人都可以查看，请在调用前取得图片发布许可。[远程 CDP](/zh/concepts/remote-cdp)
+
+## 连接并读取网页
+
+1. 在 [AdsCrawl 控制台](https://app.adscrawl.net/dashboard/keys/)创建 API key。
+2. 将 `https://api.adscrawl.net/mcp` 添加为远程 Streamable HTTP 服务。通过客户端的密钥设置保存 API key，并用 `x-api-key` 请求头发送。
+3. 连接后列出可用工具。试读一个公开页面时，可以让 AI 执行：“用 AdsCrawl 浏览器走美国线路打开 `https://example.com`，读取页面标题，然后关闭浏览器。”页面标题应为 `Example Domain`。
+4. 客户端可通过 `tools/list` 获取 `browser_open`、`browser_read` 和 `browser_close` 的参数。若新会话需要导航，可调用 `browser_navigate`。结束时关闭会话，释放并发名额。
+
+[官方 MCP 注册记录](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.AdsCrawl%2Fads-crawl/versions/latest) · [AdsCrawl Codex 插件](/zh/sdks/codex)

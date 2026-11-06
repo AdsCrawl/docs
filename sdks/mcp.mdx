@@ -1,0 +1,28 @@
+---
+title: "AdsCrawl MCP server"
+sidebarTitle: "MCP server"
+description: "Connect an MCP client to a hosted browser. Compare plans and session limits, then read a public page using the AdsCrawl MCP endpoint."
+keywords:
+  - "AdsCrawl"
+  - "MCP"
+  - "Streamable HTTP"
+---
+
+Connect an MCP client to AdsCrawl to open a hosted browser, read a rendered page, click or fill a form, and capture a screenshot in the same session.
+
+## Pricing
+
+The MCP service uses your AdsCrawl account. Free costs USD 0 and includes 500 credits once. Hobby costs USD 9 for 3,000 credits per month, Starter USD 49 for 100,000 and Pro USD 199 for 500,000. `browser_open` starts a billed Remote CDP session. Use `browser_close` when finished and check for `confirmed: true` to verify that the session stopped. Check your account's Billing & Usage for consumption. [Plan prices](/pricing) · [Credit rules](/credits-and-limits)
+
+## Limits
+
+Use a client that supports Streamable HTTP and a secret `x-api-key` header. Remote CDP sessions share the key's concurrency limit. If session creation returns HTTP 429, close an active session or wait for capacity. A target can require a login, present a verification page or deny access. `browser_screenshot` publishes a JPEG that anyone with its link can view. Get permission to publish the image before calling the tool. [Remote CDP](/concepts/remote-cdp)
+
+## Connect and read a page
+
+1. Create an API key in the [AdsCrawl dashboard](https://app.adscrawl.net/dashboard/keys/).
+2. Add `https://api.adscrawl.net/mcp` as a remote Streamable HTTP server. Store your key in the client's secret settings and send it in `x-api-key`.
+3. Connect and list the available tools. To try one public page, ask your agent: “Open `https://example.com` in an AdsCrawl browser on the US route, read the page heading, then close the browser.” The expected heading is `Example Domain`.
+4. For this flow the client can discover `browser_open`, `browser_read` and `browser_close` through `tools/list`. Use `browser_navigate` if the newly opened browser needs navigation. Close the session when finished to release the slot.
+
+[Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.AdsCrawl%2Fads-crawl/versions/latest) · [AdsCrawl Codex plugin](/sdks/codex)

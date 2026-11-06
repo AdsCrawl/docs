@@ -47,7 +47,8 @@
                       "sdks/go",
                       "sdks/ruby",
                       "sdks/php",
-                      "sdks/codex"
+                      "sdks/codex",
+                      "sdks/mcp"
                     ]
                   }
                 ]
@@ -156,7 +157,8 @@
                       "zh/sdks/go",
                       "zh/sdks/ruby",
                       "zh/sdks/php",
-                      "zh/sdks/codex"
+                      "zh/sdks/codex",
+                      "zh/sdks/mcp"
                     ]
                   }
                 ]

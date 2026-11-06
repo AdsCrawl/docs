@@ -4,7 +4,15 @@ description: "使用 AdsCrawl Codex 插件在 OpenAI Codex 中渲染页面并捕
 sidebarTitle: "Codex Plugin"
 ---
 
-AdsCrawl Codex 插件为 [OpenAI Codex](https://openai.com/codex/) 添加了浏览器渲染页面阅读和截图功能。它包含一个 `adscrawl-browser` skill 和一个仅使用 Python 3.9+ 标准库的命令行工具。它通过你的 `ADSCRAWL_API_KEY` 调用 AdsCrawl API，不捆绑任何凭证。
+AdsCrawl Codex 插件让你用自然语言在 Codex 中读取 JavaScript 渲染后的页面，获取 Markdown、HTML、文章 JSON 或 PNG 截图。
+
+## 定价
+
+插件可免费安装，浏览器请求使用所连接的 AdsCrawl 账户额度。Free 为 0 美元，一次性获得 500 credits。付费套餐按月计费，Hobby 为 9 美元含 3,000 credits，Starter 为 49 美元含 100,000 credits，Pro 为 199 美元含 500,000 credits。每次 `render` 或 `screenshot` 请求通过校验后扣 1 credit，随后执行失败也会消耗这笔额度。[套餐定价](/zh/pricing) · [计费规则](/zh/credits-and-limits)
+
+## 限制
+
+插件命令需要 Python 3.9 或更新版本及 AdsCrawl API key，每次处理一个 URL。默认超时为 60 秒，`--timeout-ms` 的上限为 3,600,000 毫秒。需要连续点击或提交表单时，请通过浏览器自动化库操作远程 CDP 会话。目标站点可能要求登录或返回验证页。[远程 CDP](/zh/concepts/remote-cdp)
 
 ## 功能
 
@@ -64,7 +72,7 @@ python3 plugins/adscrawl/scripts/adscrawl.py render \
 ```
 
 <Note>
-  `--format` 支持 `markdown`、`html` 或 `json`（结构化 article）。
+`--format` 支持 `markdown`、`html` 或 `article`（结构化文章 JSON）。
 </Note>
 
 ### 捕获截图
