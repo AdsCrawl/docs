@@ -118,7 +118,6 @@
                   "api-reference/cloud-browsers-list",
                   "api-reference/cloud-browsers-get",
                   "api-reference/cloud-browsers-create",
-                  "api-reference/cloud-browsers-launch",
                   "api-reference/cloud-browsers-start",
                   "api-reference/cloud-browsers-stop"
                 ]
@@ -229,7 +228,6 @@
                   "zh/api-reference/cloud-browsers-list",
                   "zh/api-reference/cloud-browsers-get",
                   "zh/api-reference/cloud-browsers-create",
-                  "zh/api-reference/cloud-browsers-launch",
                   "zh/api-reference/cloud-browsers-start",
                   "zh/api-reference/cloud-browsers-stop"
                 ]

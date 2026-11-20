@@ -1,157 +1,56 @@
 ---
 title: "Start Cloud Browser"
 sidebarTitle: "Start Browser"
-description: "Start a saved cloud browser profile and wait for it to reach running state. Returns 200 with a live connectUrl only after the browser is ready."
 api: "POST /cloud-browsers/{id}/start"
 playground: "interactive"
+description: "Send `{}` to start the profile with its saved configuration. Configure the proxy, cookies, and fingerprint on Create or Update. The API uses the key from the request header. If supplied, the optional string `apiKeyId` must match that key’s ID."
+authMethod: "key"
+keywords:
+  - "cloud browsers"
+  - "profiles"
+  - "API"
 ---
 
-Start a previously saved cloud browser profile by its `id`. The endpoint blocks until the browser reaches `running` state and then returns `200` with the full runtime object, including `connectUrl`, so you can open the interactive session immediately. A successful `200` response means billing has begun: credits are consumed at one credit per started minute from this moment until you call `POST /cloud-browsers/{id}/stop`.
+Send `{}` to start the profile with its saved configuration. Configure the proxy, cookies, and fingerprint on Create or Update. The API uses the key from the request header. If supplied, the optional string `apiKeyId` must match that key’s ID.
 
-<ParamField path="id" type="string (UUID)" required>
-  The persistent profile identifier returned by `POST /cloud-browsers` (create) or `GET /cloud-browsers` (list). This is distinct from the runtime `sessionId`.
+<ParamField path="id" type="string" required>
+  Saved profile UUID returned by Create or List.
 </ParamField>
 
-<ParamField body="proxy" type="object" required>
-  Required on every `x-api-key` start. You must supply a valid top-level `proxy` on each start request even if a proxy was saved in the profile's `browserSettings`. A saved proxy, a managed `countryCode`, or a previous run's proxy cannot satisfy this requirement.
-
-  Supply either the `server` form or the split `protocol` + `host` + `port` form:
-
-  - `server` — full URL: `http://proxy.example.com:8080` or `socks5://proxy.example.com:1080`. Must include an explicit port (1–65535). Must not contain embedded credentials, path, query, or fragment. Cannot be combined with `host`.
-  - `protocol` — `http` or `socks5`.
-  - `host` — proxy hostname.
-  - `port` — integer or numeric string from 1 to 65535.
-
-  Omit both `username` and `password` for an unauthenticated proxy, or supply both as non-empty strings. A proxy failure must never fall back to a direct connection. Start overrides affect this run only and do not update the saved profile.
+<ParamField body="apiKeyId" type="string">
+  Optional; must match the ID of the authenticated API key when supplied.
 </ParamField>
 
-<ParamField body="apiKeyId" type="string (UUID)">
-  Required when authenticating with a session cookie or `Authorization: Bearer`. Select an active, unexpired API key that belongs to your account. When authenticating with `x-api-key`, the current key is selected automatically; if `apiKeyId` is also provided, it must match.
-</ParamField>
-
-<ParamField body="countryCode" type="string">
-  Available to session/Bearer callers only; not accepted with `x-api-key`. Use `GLOBAL` for a random popular region or a two-letter ISO code such as `FR` to prefer a trusted proxy in that region with dynamic fallback. An empty string is not a valid selection. Cannot be combined with `proxy` in the same request. This override affects this run only and does not update the saved profile.
-</ParamField>
-
-<ParamField body="cookies" type="array">
-  Optional per-run cookie override. Takes precedence over any cookies saved in the profile for this run only, without updating the saved profile configuration.
-</ParamField>
-
-<ParamField body="fingerprint" type="object">
-  Optional per-run fingerprint override, merged by field with saved settings for this run only. Supported fields: `webRtc` (`forward` | `real` | `disabled`), `webGl` / `webGlImage` / `canvas` / `audioContext` / `clientRects` / `speechVoices` / `fonts` / `hardware` (`random` | `real`), `webGpu` (`random` | `real` | `disabled`), `doNotTrack` (`random` | `enabled` | `disabled`). Legacy `hardwareConcurrency` and `deviceMemory` accept integers 1–64. Invalid or conflicting combinations return `INVALID_FINGERPRINT_SETTINGS`.
-</ParamField>
-
-## Response
-
-<ResponseField name="ok" type="boolean">
-  Always `true` on success.
-</ResponseField>
-
-<ResponseField name="runtime" type="object">
-  Runtime state at confirmation.
-
-  <Expandable title="Runtime fields">
-    <ResponseField name="runtimeKind" type="string">
-      `neko` or `worker_cdp`. `neko` omits `cdpBaseUrl`.
-    </ResponseField>
-    <ResponseField name="status" type="string">
-      Always `"running"` in a successful `200` response.
-    </ResponseField>
-    <ResponseField name="sessionId" type="string">
-      Active session identifier.
-    </ResponseField>
-    <ResponseField name="expiresAt" type="string (RFC3339)">
-      Session expiry timestamp.
-    </ResponseField>
-    <ResponseField name="connectUrl" type="string">
-      Direct URL to the interactive browser viewer. Open this in a browser signed in as the profile owner. Use the URL exactly as returned.
-    </ResponseField>
-  </Expandable>
-</ResponseField>
-
-<Note>
-  Billing runs at **1 credit per started minute** from a successful `200` response until you confirm stop via `POST /cloud-browsers/{id}/stop`. Closing the viewer tab or losing the connection does **not** stop billing.
-</Note>
-
-| Status | Meaning |
-| --- | --- |
-| 200 | Browser is running. Billing has started. |
-| 400 | `PROXY_REQUIRED` (missing top-level proxy for API key), `INVALID_PROXY`, `COUNTRY_PROXY_CONFLICT` (`proxy` and `countryCode` both supplied), `INVALID_COUNTRY_CODE`, `INVALID_FINGERPRINT_SETTINGS`, or invalid cookies. A missing or inactive `apiKeyId` when using session/Bearer auth also returns `400`. |
-| 401 | Authentication is missing, invalid, or expired. |
-| 402 | `PAID_PLAN_REQUIRED` (no active paid plan) or `INSUFFICIENT_CREDITS` (fewer than one credit available). The response includes `balance` and `requiredCredits` fields. |
-| 403 | The supplied `apiKeyId` belongs to another user or does not match the authenticated key. |
-| 404 | The profile does not exist or belongs to another user. |
-| 409 | `CLOUD_BROWSER_CONCURRENCY_LIMIT`: your running allowance is full or set to `0`. Stop another browser to free a slot before retrying. The response includes `runningLimit` and `runningCount`. Or the browser is already running (no code): this profile already has an active session in `starting`, `running`, or `stopping` state. Stop it first, wait for `stopped`, then start again. |
-| 502 | `CLOUD_RUNTIME_AUTH_FAILED`, `CLOUD_RUNTIME_NOT_FOUND`, `CLOUD_RUNTIME_HTTP_ERROR`, `CLOUD_RUNTIME_INVALID_RESPONSE`, or `CLOUD_RUNTIME_CONTROLLER_FAILED`. |
-| 503 | `CLUSTER_NO_CAPACITY` (includes nullable `nextAvailableAt` and `retryAfterMs`), `CDP session capacity exhausted`, `MANAGED_PROXY_UNAVAILABLE`, `DYNAMIC_PROXY_NOT_CONFIGURED`, `CLOUD_RUNTIME_UNREACHABLE`, or `CLOUD_RUNTIME_CONFIG_INVALID`. A proxy failure never falls back to a direct connection; fix the proxy before retrying. |
-| 504 | `CLOUD_RUNTIME_TIMEOUT`. A timeout does not prove the runtime is absent. Inspect the profile's status and call stop when needed; the running slot remains reserved until cleanup is confirmed. |
-| 500 | Internal service failure. |
-
-<RequestExample>
-
-```bash cURL (API Key with Proxy)
-curl --fail-with-body --silent --show-error --max-time 65 \
-  -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/start' \
-  -H 'x-api-key: <api-key>' \
-  -H 'content-type: application/json' \
-  --data '{
-  "proxy": {
-    "server": "http://proxy.example.com:8080",
-    "username": "<proxy-user>",
-    "password": "<proxy-password>"
-  }
-}'
+```bash
+curl "https://api.adscrawl.net/cloud-browsers/$BROWSER_ID/start" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" -H 'Content-Type: application/json' --data '{}'
 ```
 
-```bash cURL (Session / Bearer with countryCode)
-curl --fail-with-body --silent --show-error --max-time 65 \
-  -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/start' \
-  -H 'Authorization: Bearer <SESSION_JWT>' \
-  -H 'content-type: application/json' \
-  --data '{
-  "apiKeyId": "<api-key-id>",
-  "countryCode": "GLOBAL"
-}'
-```
+HTTP 200 example:
 
-</RequestExample>
-
-<ResponseExample>
-
-```json 200 Running (neko)
+```json
 {
   "ok": true,
   "runtime": {
-    "runtimeKind": "neko",
     "status": "running",
-    "sessionId": "<session-id>",
-    "expiresAt": "2026-09-07T09:00:00.000Z",
-    "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
+    "sessionId": "6a8a30ad-4788-46cf-a900-a1a1162478b2",
+    "connectUrl": "https://app.adscrawl.net/dashboard/cloud-browser-viewer/?cloudBrowserId=7a631d48-afd7-47de-9fcb-8b57e62ccf75&sessionId=6a8a30ad-4788-46cf-a900-a1a1162478b2"
   }
 }
 ```
 
-```json 400 Proxy Required
-{
-  "error": "API key starts require an explicit proxy in every request",
-  "code": "PROXY_REQUIRED"
-}
-```
+Open the returned `connectUrl` in a browser signed in as the owner. The runtime can also include `expiresAt` and `idleExpiresAt` when those deadlines apply. If the client disconnects before receiving the response, check Get before retrying. An accepted start can continue after disconnection.
 
-```json 409 Concurrency Limit
-{
-  "error": "Cloud browser running limit reached",
-  "code": "CLOUD_BROWSER_CONCURRENCY_LIMIT"
-}
-```
+| HTTP status | Meaning |
+| --- | --- |
+| 400 | Invalid JSON or invalid request fields. An empty body is invalid. |
+| 402 | A paid plan or sufficient balance is required. Check `code` for `PAID_PLAN_REQUIRED` or `INSUFFICIENT_CREDITS`. |
+| 403 | The supplied `apiKeyId` conflicts with the authenticated key. |
+| 404 | Profile unavailable to this account. |
+| 409 | Profile already active, session state conflict, or account concurrency exhausted (`CLOUD_BROWSER_CONCURRENCY_LIMIT`). |
+| 429 | Session limit for the API key or user reached. |
+| 503 | Runtime unavailable or service capacity exhausted. |
 
-```json 503 No Capacity
-{
-  "error": "Cloud browser cluster has no available capacity",
-  "code": "CLUSTER_NO_CAPACITY",
-  "nextAvailableAt": null,
-  "retryAfterMs": null
-}
-```
+## Authentication
 
-</ResponseExample>
+All requests use `https://api.adscrawl.net` and require an active account API key in `x-api-key`. A dashboard cookie or session JWT alone returns HTTP 401. Set `ADSCRAWL_API_KEY` before running the examples. For one profile, set `BROWSER_ID` to its saved UUID.
