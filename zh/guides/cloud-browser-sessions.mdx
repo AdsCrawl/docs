@@ -1,183 +1,73 @@
 ---
 title: "创建和管理持久化云浏览器会话"
-sidebarTitle: "Cloud Browser Sessions"
+sidebarTitle: "云浏览器会话"
 description: "创建带有保存的 cookies 和指纹的持久化云浏览器配置文件，按需启动它们，并在交互式浏览器中实时查看。"
 ---
 
-云浏览器为你提供持久化配置文件：存储的 cookies、一致的指纹和保存的代理偏好设置。你无需每次都重新从头配置，即可反复启动。每次启动都会从你离开的位置继续：浏览器打开时，你注入的 cookies 已设置，指纹已应用。
+所有请求使用 `https://api.adscrawl.net`，并在 `x-api-key` 请求头中提供有效的账号 API Key。仅提供控制台 Cookie 或会话 JWT 会返回 HTTP 401。运行示例前设置 `ADSCRAWL_API_KEY`；操作单个配置时，将 `BROWSER_ID` 设为创建或列表接口返回的 UUID。
 
-## 启动云浏览器
+浏览器设置保存一次，后续使用同一配置 ID。创建不启动浏览器，停止保留已保存数据。
 
-<Tabs>
-  <Tab title="快速启动">
-    `POST /cloud-browsers/launch` 创建配置文件并等待浏览器运行后才返回。当你想要一个单一请求就能提供即用型 `connectUrl` 时，请使用此方式。
+- [列出云浏览器配置](/zh/api-reference/cloud-browsers-list)
+- [获取云浏览器配置](/zh/api-reference/cloud-browsers-get)
+- [创建浏览器配置](/zh/api-reference/cloud-browsers-create)
+- [启动云浏览器](/zh/api-reference/cloud-browsers-start)
+- [停止云浏览器](/zh/api-reference/cloud-browsers-stop)
+- [更新浏览器配置](/zh/api-reference/cloud-browsers-update)
+- [删除浏览器配置](/zh/api-reference/cloud-browsers-delete)
 
-    ```bash
-    curl --fail-with-body -sS --max-time 200 \
-      -X POST 'https://api.adscrawl.net/cloud-browsers/launch' \
-      -H 'x-api-key: YOUR_API_KEY' \
-      -H 'content-type: application/json' \
-      -d '{
-        "proxy": {
-          "server": "http://proxy.example.com:8080",
-          "username": "user",
-          "password": "pass"
-        },
-        "tabs": ["https://example.com"],
-        "cookies": [{
-          "name": "session",
-          "value": "abc123",
-          "domain": "example.com",
-          "path": "/"
-        }]
-      }'
-    ```
+## 创建、启动并确认停止
 
-    成功的 `201` 响应包含一个可直接打开的 `connectUrl`：
-
-    ```json
-    {
-      "ok": true,
-      "id": "<browser-id>",
-      "source": "launch",
-      "deleteOnStop": false,
-      "runtime": {
-        "runtimeKind": "neko",
-        "status": "running",
-        "sessionId": "<session-id>",
-        "expiresAt": "2026-09-07T09:00:00.000Z",
-        "connectUrl": "https://api.adscrawl.net/cloud-browser-runtime/<session-id>/?usr=adscrawl&pwd=adscrawl"
-      }
-    }
-    ```
-
-    <Warning>
-      每次调用 `/cloud-browsers/launch` 都会创建一个**新的**配置文件。如果请求失败或响应丢失，请在重试前检查 `GET /cloud-browsers` —— 切勿自动重复启动 POST。
-    </Warning>
-  </Tab>
-  <Tab title="先创建再启动">
-    当你想要更多控制时使用两个独立的请求 —— 例如，现在保存配置文件并在以后启动，或在消耗运行槽之前验证配置文件已创建。
-
-    **步骤 1 — 创建并保存配置文件：**
-
-    ```bash
-    curl --fail-with-body -sS \
-      -X POST 'https://api.adscrawl.net/cloud-browsers' \
-      -H 'x-api-key: YOUR_API_KEY' \
-      -H 'content-type: application/json' \
-      -d '{
-        "remark": "work profile",
-        "browserSettings": {
-          "viewport": { "width": 1440, "height": 900 }
-        }
-      }'
-    ```
-
-    响应：`{ "ok": true, "id": "<browser-id>" }`
-
-    **步骤 2 — 启动配置文件（始终再次发送代理）：**
-
-    ```bash
-    curl --fail-with-body -sS --max-time 65 \
-      -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/start' \
-      -H 'x-api-key: YOUR_API_KEY' \
-      -H 'content-type: application/json' \
-      -d '{
-        "proxy": {
-          "server": "http://proxy.example.com:8080",
-          "username": "user",
-          "password": "pass"
-        }
-      }'
-    ```
-
-    <Note>
-      每个 API 密钥启动请求都必须包含显式的 `proxy` 对象，即使配置文件已保存代理。保存的 `browserSettings.proxy` 不能替代它。
-    </Note>
-  </Tab>
-</Tabs>
-
-## 打开交互式浏览器查看器
-
-一旦 `runtime.status` 为 `"running"`，在任何已登录 AdsCrawl 账户的浏览器中打开 `connectUrl`。查看器让你实时交互式地控制远程浏览器。
-
-<Warning>
-  **关闭查看器标签页不会停止云浏览器。** 会话继续运行并按每分钟启动计费一积分。完成后务必调用 `POST /cloud-browsers/:id/stop`。
-</Warning>
-
-## 停止云浏览器
-
-发送 `POST` 以停止运行中的会话：
+需要 bash、curl 和 jq。示例使用 US 托管代理地区，也可改为在 browserSettings 保存自定义代理。以所有者身份登录后打开 runtime.connectUrl，使用结束后执行停止步骤。
 
 ```bash
-curl --fail-with-body -sS --max-time 65 \
-  -X POST 'https://api.adscrawl.net/cloud-browsers/<browser-id>/stop' \
-  -H 'x-api-key: YOUR_API_KEY'
-```
+# Requires bash, curl and jq. Set ADSCRAWL_API_KEY first.
+set -euo pipefail
+: "${ADSCRAWL_API_KEY:?Set ADSCRAWL_API_KEY first}"
 
-响应状态告诉你停止是否已确认：
+# 1. Save a profile. Choose a managed region or save your own proxy.
+created=$(curl --fail-with-body -sS --max-time 30 \
+  "https://api.adscrawl.net/cloud-browsers" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -H "content-type: application/json" \
+  --data '{"remark":"daily reports","browserSettings":{"countryCode":"US","viewport":{"width":1440,"height":900}}}')
+BROWSER_ID=$(printf '%s' "$created" | jq -er '.id')
+printf 'Saved profile: %s\n' "$BROWSER_ID"
 
-| HTTP 状态 | `runtime.status` | 含义 |
-| --- | --- | --- |
-| `200` | `stopped` | 会话已完全停止；运行槽已释放 |
-| `202` | `stopping` | 关闭进行中；配额仍被保留 |
-| `409` | — | 启动仍在进行中；等待并重试 |
+# 2. Start with the saved settings. Keep the ID if this request times out.
+if ! curl --fail-with-body -sS --max-time 200 \
+  "https://api.adscrawl.net/cloud-browsers/$BROWSER_ID/start" \
+  -H "x-api-key: $ADSCRAWL_API_KEY" \
+  -H "content-type: application/json" --data '{}'; then
+  printf 'Start unconfirmed. Query profile %s before retrying.\n' "$BROWSER_ID" >&2
+  exit 1
+fi
 
-当你收到 `202` 时，轮询配置文件详情端点直到 `stopped` 被确认：
+# Open runtime.connectUrl while signed in as the profile owner.
+# Run the cleanup below when finished; closing the viewer does not stop billing.
+curl --fail-with-body -sS --max-time 30 -X POST \
+  "https://api.adscrawl.net/cloud-browsers/$BROWSER_ID/stop" \
+  -H "x-api-key: $ADSCRAWL_API_KEY"
 
-```bash
-# 轮询直到停止（示例 — 在生产环境中添加上限）
-until [ "$(curl -sS 'https://api.adscrawl.net/cloud-browsers/<browser-id>' \
-  -H 'x-api-key: YOUR_API_KEY' | jq -r '.runtime.status')" = "stopped" ]; do
-  echo "Still stopping..."
+# HTTP 202 means stopping. Confirm stopped before restarting or deleting.
+stopped=false
+for ((attempt=0; attempt<60; attempt++)); do
+  detail=$(curl --fail-with-body -sS --max-time 30 \
+    "https://api.adscrawl.net/cloud-browsers/$BROWSER_ID" \
+    -H "x-api-key: $ADSCRAWL_API_KEY") || exit 1
+  status=$(printf '%s' "$detail" | jq -er '.runtime.status') || exit 1
+  if [ "$status" = "stopped" ]; then
+    stopped=true
+    break
+  fi
   sleep 2
 done
-echo "Stopped."
+if [ "$stopped" != true ]; then
+  printf '%s\n' 'Shutdown is not confirmed. Query the same profile before restarting or deleting.' >&2
+  exit 1
+fi
+
+# The stopped profile remains saved for your next task.
 ```
 
-## 检查并发限制
-
-检索你的当前配额使用情况以及配置文件列表：
-
-```bash
-curl -sS 'https://api.adscrawl.net/cloud-browsers?page=1&pageSize=10' \
-  -H 'x-api-key: YOUR_API_KEY' | jq '{limit, runningLimit, runningCount}'
-```
-
-| 字段 | 含义 |
-| --- | --- |
-| `limit` | 你的套餐允许保存的最大配置文件数 |
-| `runningLimit` | 你的账户允许的最大同时运行会话数 |
-| `runningCount` | 当前处于 `starting`、`running` 或 `stopping` 状态的会话数 |
-
-<Note>
-  如果你超过 `runningLimit`，启动或启动请求将返回 `409 CLOUD_BROWSER_CONCURRENCY_LIMIT`。停止一个活动会话以释放槽位后再重试。这与 `409 Cloud Browser limit reached` 不同，后者表示你的保存配置文件配额已满。
-</Note>
-
-## 配置文件保留与复用
-
-<Tip>
-  `deleteOnStop` 默认为 `false`，因此你的配置文件 —— 包括保存的 cookies 和标签页快照 —— 在每次停止后都会保留。你可以根据需要多次重新启动同一配置文件，或在停止状态下查询它，而不会丢失累积的会话状态。
-</Tip>
-
-配置文件仅在你显式调用 `DELETE /cloud-browsers/:id` 时才会被移除。已停止的配置文件仍计入你的保存配置文件 `limit`，但不消耗任何运行槽。
-
-## 运行时状态参考
-
-<Accordion title="运行时状态生命周期">
-  <ResponseField name="starting" type="status">
-    浏览器正在初始化。运行槽已被保留。请勿在此配置文件上尝试再次启动；等待 `running` 或处理错误。
-  </ResponseField>
-
-  <ResponseField name="running" type="status">
-    浏览器正在运行。`connectUrl` 存在于运行时对象中。计费已激活。
-  </ResponseField>
-
-  <ResponseField name="stopping" type="status">
-    已请求停止但尚未确认。运行槽仍被保留。轮询直到 `stopped`。
-  </ResponseField>
-
-  <ResponseField name="stopped" type="status">
-    会话已结束。运行槽已释放。保存的配置文件及其 cookies 被保留。
-  </ResponseField>
-</Accordion>
+超时不能证明浏览器已停止；重试前先查询同一配置。stopping 仍占并发名额。更新会替换提交的 browserSettings 对象或 accounts 列表；删除会永久移除已停止配置。

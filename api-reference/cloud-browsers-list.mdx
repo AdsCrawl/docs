@@ -1,172 +1,117 @@
 ---
 title: "List Cloud Browser Profiles"
 sidebarTitle: "List Browsers"
-description: "List all saved cloud browser profiles for your account along with pagination metadata and your plan's saved-profile and concurrent-running allowances."
+description: "Filter saved cloud browser profiles by remark, status, and region, with pagination and account-wide storage and concurrency allowances."
 api: "GET /cloud-browsers"
 playground: "interactive"
+authMethod: "key"
+keywords:
+  - "cloud browsers"
+  - "profiles"
+  - "filters"
 ---
 
-Retrieve every cloud browser profile saved under your account together with account-wide quota fields that tell you how many profiles you can save (`limit`), how many can run at the same time (`runningLimit`), and how many are currently occupying a running slot (`runningCount`). This endpoint accepts `x-api-key`, a session JWT in `Authorization: Bearer <token>`, or a dashboard session cookie.
+List your saved cloud browser profiles, newest first. Filters apply together before pagination. All requests require an active account API key in the `x-api-key` header; a dashboard cookie or session JWT alone returns HTTP 401.
+
+## Request
+
+All query parameters are optional.
 
 <ParamField query="page" type="integer" default="1">
-  Page number to retrieve. Defaults to `1`; invalid or non-positive values fall back to `1`. Maximum is `10000`.
+  Starts at 1. Missing, invalid, or non-positive values use 1. Capped at 10,000, then at the last matching page.
 </ParamField>
 
 <ParamField query="pageSize" type="integer" default="10">
-  Number of profiles per page. Defaults to `10`; invalid or non-positive values fall back to `10`. Maximum is `10`.
+  Missing, invalid, or non-positive values use 10. Values above 100 are capped at 100.
 </ParamField>
 
-## Response
+<ParamField query="remark" type="string">
+  Matches a literal substring of the saved remark. Up to 255 characters after trimming whitespace.
+</ParamField>
 
-<ResponseField name="ok" type="boolean">
-  Always `true` on success.
-</ResponseField>
+<ParamField query="status" type="string">
+  One of starting, running, stopping, or stopped. Omit or pass all for every status. Supply at most once.
+</ParamField>
 
-<ResponseField name="data" type="array">
-  List of saved cloud browser profile objects for the requested page.
+<ParamField query="region" type="string">
+  Matches the configured country first, then the observed proxy exit country. Use a country code such as US, custom for a configured proxy with no known country, or unknown when neither country nor proxy is available. Omit or pass all for every region. Supply at most once, with up to 120 characters and no control characters.
+</ParamField>
 
-  <Expandable title="Profile object fields">
-    <ResponseField name="id" type="string (UUID)">
-      Persistent profile identifier. Use this value in path parameters for start, stop, detail, and delete.
-    </ResponseField>
-    <ResponseField name="source" type="string">
-      Origin of the profile: `manual` for profiles created with `POST /cloud-browsers`, or `launch` for profiles created with `POST /cloud-browsers/launch`.
-    </ResponseField>
-    <ResponseField name="deleteOnStop" type="boolean">
-      Always `false` in current API responses. Profiles are retained after stop unless explicitly deleted.
-    </ResponseField>
-    <ResponseField name="remark" type="string | null">
-      Optional label saved at creation or via PATCH.
-    </ResponseField>
-    <ResponseField name="browserSettings" type="object">
-      Saved configuration (viewport, locale, timezoneId, proxy display info, cookies, fingerprint). Proxy credentials are stripped from responses.
-    </ResponseField>
-    <ResponseField name="proxyDisplayIp" type="string | null">
-      Last observed proxy exit IP address, or `null` if not yet set.
-    </ResponseField>
-    <ResponseField name="proxyDisplayRegion" type="string | null">
-      Last observed proxy region, or `null` if not yet set.
-    </ResponseField>
-    <ResponseField name="lastOpenedAt" type="string (RFC3339) | null">
-      Timestamp of the most recent successful start, or `null` if the profile has never run.
-    </ResponseField>
-    <ResponseField name="updatedAt" type="string (RFC3339)">
-      Timestamp of the most recent profile update.
-    </ResponseField>
-    <ResponseField name="runtime" type="object">
-      Current runtime status for this profile.
-
-      <Expandable title="Runtime fields">
-        <ResponseField name="runtimeKind" type="string">
-          `neko` or `worker_cdp`.
-        </ResponseField>
-        <ResponseField name="status" type="string">
-          `starting`, `running`, `stopping`, or `stopped`. Both `starting` and `stopping` reserve a running slot.
-        </ResponseField>
-        <ResponseField name="sessionId" type="string">
-          Present when an active session exists.
-        </ResponseField>
-        <ResponseField name="expiresAt" type="string (RFC3339)">
-          Session expiry timestamp; present when an active session exists.
-        </ResponseField>
-        <ResponseField name="connectUrl" type="string">
-          Direct URL to the interactive browser viewer. Only present when `status` is `running`. Open it in a browser signed in as the profile owner. Never append API keys or proxy credentials to this URL.
-        </ResponseField>
-      </Expandable>
-    </ResponseField>
-  </Expandable>
-</ResponseField>
-
-<ResponseField name="pagination" type="object">
-  Standard pagination envelope.
-
-  <Expandable title="Pagination fields">
-    <ResponseField name="page" type="integer">
-      Current page number.
-    </ResponseField>
-    <ResponseField name="pageSize" type="integer">
-      Number of items returned on this page.
-    </ResponseField>
-    <ResponseField name="total" type="integer">
-      Total number of saved profiles across all pages.
-    </ResponseField>
-    <ResponseField name="totalPages" type="integer">
-      Total number of pages given the current `pageSize`.
-    </ResponseField>
-  </Expandable>
-</ResponseField>
-
-<ResponseField name="limit" type="integer">
-  Your plan's saved-profile allowance: the maximum number of profiles you can save at once. Creating a new profile when you have reached this limit returns `409`.
-</ResponseField>
-
-<ResponseField name="runningLimit" type="integer">
-  Your account's concurrent running allowance. A value of `0` blocks all new starts. An unset or negative limit defaults to `1`. Lowering this value does not stop currently running sessions.
-</ResponseField>
-
-<ResponseField name="runningCount" type="integer">
-  Total number of sessions currently in `starting`, `running`, or `stopping` state across all your profiles, pages, and API keys. This count excludes temporary Remote CDP sessions created via `/cdp/sessions`.
-</ResponseField>
-
-| Code | Meaning |
-| --- | --- |
-| `200` | Success |
-| `401` | Unauthenticated |
-| `403` | Session limit reached (`SESSIONS_PER_API_KEY_LIMIT_REACHED`) |
-| `500` | Internal error |
-| `503` | Runtime unavailable |
-
-<Note>
-  `runningCount` includes sessions in **all three active states** (`starting`, `running`, and `stopping`) because all three reserve a running slot. A session does not release its slot until it reaches `stopped`.
-</Note>
+Set `ADSCRAWL_API_KEY` to your account API key. For example, list stopped profiles whose remark contains daily:
 
 <RequestExample>
 
 ```bash cURL
-curl --fail-with-body --silent --show-error --max-time 65 \
-  -X GET 'https://api.adscrawl.net/cloud-browsers?page=1&pageSize=10' \
-  -H 'x-api-key: <api-key>'
+curl --get "https://api.adscrawl.net/cloud-browsers" \
+  --header "x-api-key: $ADSCRAWL_API_KEY" \
+  --data-urlencode "status=stopped" \
+  --data-urlencode "remark=daily" \
+  --data-urlencode "pageSize=25"
 ```
 
 </RequestExample>
+
+## Response
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ok` | boolean | Always true on success. |
+| `data` | array | Matching profiles on this page, sorted by creation time descending, then ID descending. |
+| `pagination.page` | integer | Page actually returned. |
+| `pagination.pageSize` | integer | Effective page capacity; the last page can contain fewer profiles. |
+| `pagination.total` | integer | Profiles matching all filters across all pages. |
+| `pagination.totalPages` | integer | Matching page count. Empty results return `data: []`, page 1, and one total page. |
+| `limit` | integer | Maximum saved profiles for this account. |
+| `runningLimit` | integer | Maximum concurrent cloud browser sessions. Zero blocks new starts. |
+| `runningCount` | integer | Account-wide saved-profile sessions in starting, running, or stopping state, independent of filters and pagination. |
+
+### Profile fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string (UUID) | Persistent profile ID for detail, start, stop, update, and delete. |
+| `remark` | string | Saved label; an unset label is an empty string. |
+| `lastOpenedAt` | timestamp or null | Last opening time in UTC; null if never opened. |
+| `updatedAt` | timestamp | Last profile update in UTC. |
+| `runtime.status` | string | starting, running, stopping, or stopped. Without an active session, runtime contains only `status: "stopped"`. |
+| `runtime.sessionId` | string, optional | Active session ID. |
+| `runtime.expiresAt` | timestamp, optional | Expiration time when a runtime deadline applies. |
+| `runtime.idleExpiresAt` | timestamp, optional | Idle expiration time when an idle policy applies. |
+| `runtime.connectUrl` | string, optional | Viewer URL when running and available. Open it while signed in as the profile owner. |
 
 <ResponseExample>
 
 ```json 200 OK
 {
   "ok": true,
-  "data": [
-    {
-      "id": "<browser-id>",
-      "source": "manual",
-      "deleteOnStop": false,
-      "remark": "work profile",
-      "browserSettings": {
-        "viewport": {
-          "width": 1440,
-          "height": 900
-        }
-      },
-      "proxyDisplayIp": null,
-      "proxyDisplayRegion": null,
-      "lastOpenedAt": null,
-      "updatedAt": "2026-09-07T08:00:00.000Z",
-      "runtime": {
-        "runtimeKind": "neko",
-        "status": "stopped"
-      }
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "pageSize": 10,
-    "total": 1,
-    "totalPages": 1
-  },
-  "limit": 10,
-  "runningLimit": 1,
-  "runningCount": 0
+  "data": [{
+    "id": "7a631d48-afd7-47de-9fcb-8b57e62ccf75",
+    "remark": "daily reports",
+    "lastOpenedAt": null,
+    "updatedAt": "2026-11-18T08:00:00.000Z",
+    "runtime": {"status": "stopped"}
+  }],
+  "pagination": {"page": 1, "pageSize": 25, "total": 1, "totalPages": 1},
+  "limit": 20,
+  "runningLimit": 3,
+  "runningCount": 2
 }
 ```
 
 </ResponseExample>
+
+## Errors
+
+| HTTP status | Meaning |
+| --- | --- |
+| 400 | Invalid filter value, or repeated status or region. Read error for the rejected condition. |
+| 401 | An active account API key is required. |
+| 500 | The API could not load profiles or account quotas. |
+
+For example, `?status=idle` returns HTTP 400:
+
+```json
+{"error":"status must be running, starting, stopping or stopped"}
+```
+
+A stopping session still occupies its running slot. Poll [Get Browser](/api-reference/cloud-browsers-get) until stopped before restarting or deleting it.
